@@ -1,0 +1,171 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.*;
+
+public class ExcelComparator {
+
+    public static class RateRow {
+        private final String procedure;
+        private final String cmsAddDate;
+        private final String cmsTermDate;
+        private final String modifiers;
+        private final String serviceCategory;
+        private final String rateType;
+        private final String pricingMethod;
+        private final String rateEffectiveDate;
+        private final String rateEndDate;
+        private final String maxFee;
+
+        public RateRow(String procedure, String cmsAddDate, String cmsTermDate, String modifiers,
+                       String serviceCategory, String rateType, String pricingMethod,
+                       String rateEffectiveDate, String rateEndDate, String maxFee) {
+            this.procedure = procedure;
+            this.cmsAddDate = cmsAddDate;
+            this.cmsTermDate = cmsTermDate;
+            this.modifiers = normalizeModifiers(modifiers);
+            this.serviceCategory = serviceCategory;
+            this.rateType = rateType;
+            this.pricingMethod = pricingMethod;
+            this.rateEffectiveDate = rateEffectiveDate;
+            this.rateEndDate = rateEndDate;
+            this.maxFee = maxFee;
+        }
+
+        private static String normalizeModifiers(String input) {
+            return input == null ? "" : input.replaceAll("[^a-zA-Z0-9]", "");
+        }
+
+        public List<String> toList() {
+            return Arrays.asList(procedure, cmsAddDate, cmsTermDate, modifiers, serviceCategory,
+                    rateType, pricingMethod, rateEffectiveDate, rateEndDate, maxFee);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RateRow rateRow = (RateRow) o;
+            return Objects.equals(procedure, rateRow.procedure) &&
+                    Objects.equals(cmsAddDate, rateRow.cmsAddDate) &&
+                    Objects.equals(cmsTermDate, rateRow.cmsTermDate) &&
+                    Objects.equals(modifiers, rateRow.modifiers) &&
+                    Objects.equals(serviceCategory, rateRow.serviceCategory) &&
+                    Objects.equals(rateType, rateRow.rateType) &&
+                    Objects.equals(pricingMethod, rateRow.pricingMethod) &&
+                    Objects.equals(rateEffectiveDate, rateRow.rateEffectiveDate) &&
+                    Objects.equals(rateEndDate, rateRow.rateEndDate) &&
+                    Objects.equals(maxFee, rateRow.maxFee);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(procedure, cmsAddDate, cmsTermDate, modifiers,
+                    serviceCategory, rateType, pricingMethod, rateEffectiveDate,
+                    rateEndDate, maxFee);
+        }
+
+        @Override
+        public String toString() {
+            return String.join(", ", toList());
+        }
+    }
+
+    public static List<RateRow> readExcel(String path) throws IOException {
+        List<RateRow> data = new ArrayList<>();
+        try (FileInputStream fis = new FileInputStream(path);
+             Workbook workbook = new XSSFWorkbook(fis)) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                RateRow rate = new RateRow(
+                        getString(row, 0),   // Procedure
+                        getString(row, 3),   // CMS Add Date
+                        getString(row, 4),   // CMS Term Date
+                        getString(row, 5),   // Modifiers
+                        getString(row, 6),   // Service Category
+                        getString(row, 10),  // Rate Type
+                        getString(row, 11),  // Pricing Method
+                        getString(row, 12),  // Rate Effective Date
+                        getString(row, 13),  // Rate End Date
+                        getString(row, 14)   // Max Fee
+                );
+                data.add(rate);
+            }
+        }
+        return data;
+    }
+
+    private static String getString(Row row, int cellIndex) {
+        Cell cell = row.getCell(cellIndex);
+        return cell == null ? "" : cell.toString().trim();
+    }
+
+    public static void compareAndWrite(List<RateRow> file1, List<RateRow> file2, String outputPath) throws IOException {
+        Set<RateRow> set1 = new HashSet<>(file1);
+        Set<RateRow> set2 = new HashSet<>(file2);
+
+        Set<RateRow> newInFile2 = new HashSet<>(set2);
+        newInFile2.removeAll(set1);
+
+        Set<RateRow> removedFromFile2 = new HashSet<>(set1);
+        removedFromFile2.removeAll(set2);
+
+        Set<RateRow> changed = new HashSet<>();
+        for (RateRow r2 : file2) {
+            for (RateRow r1 : file1) {
+                if (r1.procedure.equals(r2.procedure) && r1.modifiers.equals(r2.modifiers) && !r1.equals(r2)) {
+                    changed.add(r2);
+                    break;
+                }
+            }
+        }
+
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Comparison Results");
+            String[] headers = {
+                    "Procedure", "CMS Add Date", "CMS Term Date", "Modifiers", "Service Category",
+                    "Rate Type", "Pricing Method", "Rate Effective Date", "Rate End Date",
+                    "Max Fee/Non-Facility RBRVS Rate", "Reason"
+            };
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+
+            int rowIdx = 1;
+            rowIdx = writeRows(sheet, newInFile2, "Rows that are newly added in File 2", rowIdx);
+            rowIdx = writeRows(sheet, removedFromFile2, "Rows that are removed in File 2", rowIdx);
+            rowIdx = writeRows(sheet, changed, "Rows that are changed in File 2", rowIdx);
+
+            try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                workbook.write(fos);
+            }
+        }
+    }
+
+    private static int writeRows(Sheet sheet, Set<RateRow> rows, String reason, int startRow) {
+        for (RateRow row : rows) {
+            Row excelRow = sheet.createRow(startRow++);
+            List<String> data = row.toList();
+            for (int i = 0; i < data.size(); i++) {
+                excelRow.createCell(i).setCellValue(data.get(i));
+            }
+            excelRow.createCell(data.size()).setCellValue(reason);
+        }
+        return startRow;
+    }
+
+    public static void main(String[] args) throws IOException {
+        List<RateRow> file1 = readExcel("src/main/resources/Professional Fee Schedule_File 1.xlsx");
+        List<RateRow> file2 = readExcel("src/main/resources/Professional Fee Schedule_File 2.xlsx");
+        compareAndWrite(file1, file2, "src/main/resources/ComparisonResults.xlsx");
+        System.out.println("Comparison complete. Output written to ComparisonResults.xlsx");
+    }
+} 
