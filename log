@@ -1,0 +1,18 @@
+@GetMapping("/debug-info")
+@ResponseBody
+public Map<String, String> getDebugInfo() {
+    Map<String, String> debugInfo = new HashMap<>();
+    debugInfo.put("userName", System.getProperty("user.name"));
+    debugInfo.put("javaLibraryPath", System.getProperty("java.library.path"));
+    return debugInfo;
+}
+
+
+fetch('/debug-info')
+  .then(response => response.json())
+  .then(data => {
+    console.log("Java Server Debug Info:");
+    console.log("Running as user:", data.userName);
+    console.log("Java Library Path:", data.javaLibraryPath);
+  })
+  .catch(error => console.error("Error fetching debug info:", error));
