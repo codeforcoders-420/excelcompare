@@ -1,0 +1,14 @@
+private static String getCellValueAsString(Cell cell) {
+    if (cell == null) return "";
+    if (cell.getCellType() == CellType.STRING) {
+        return cell.getStringCellValue().trim();
+    } else if (cell.getCellType() == CellType.NUMERIC) {
+        if (DateUtil.isCellDateFormatted(cell)) {
+            return cell.getDateCellValue().toString();
+        } else {
+            return String.valueOf(cell.getNumericCellValue());  // preserves currency values like 0.75, 80.74 correctly
+        }
+    } else {
+        return "";
+    }
+}
