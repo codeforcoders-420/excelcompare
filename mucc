@@ -1,0 +1,205 @@
+package pdftpexcel.extractdatafromexcel;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Iterator;
+
+public class ExtractCodes {
+
+	public static void main(String[] args) throws IOException {
+
+		final String inputFolder = "C:\\Users\\rajas\\Desktop\\SourcefiletoFS\\Input";
+		final String outputFolder = "C:\\Users\\rajas\\Desktop\\SourcefiletoFS\\Output";
+
+		File folder = new File(inputFolder);
+		File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".xlsx"));
+		if (files == null || files.length == 0) {
+			System.out.println("No Excel files found in input folder!");
+			return;
+		}
+
+		for (File inputFile : files) {
+			processFile(inputFile, outputFolder);
+		}
+
+		System.out.println("All files processed successfully!");
+
+	}
+
+	private static void processFile(File inputFile, String outputFolder) throws IOException {
+
+		FileInputStream fis = new FileInputStream(inputFile);
+		Workbook workbook = new XSSFWorkbook(fis);
+		Sheet sheet = workbook.getSheetAt(0);
+
+		Workbook outputWorkbook = new XSSFWorkbook();
+		Sheet outputSheet = outputWorkbook.createSheet("Filtered Codes");
+
+		Workbook outputWorkbook2 = new XSSFWorkbook();
+		Sheet outputSheet2 = outputWorkbook2.createSheet("Filtered Codes Manual");
+
+		boolean headerFound = false;
+		int headerRowNum = -1;
+
+		int codeCol = -1;
+		int shortDescCol = -1;
+		int modifierCol = -1;
+		int ageRangeCol = -1;
+		int rateCol = -1;
+		int qvcCol = -1;
+		int dentalApmCol = -1;
+		int excludedProcCol = -1;
+		int ppsVisitCol = -1;
+		int effectiveDateCol = -1;
+
+		int outputRowNum = 0;
+		int outputRowNum2 = 0;
+
+		for (Row row : sheet) {
+			if (!headerFound) {
+				for (Cell cell : row) {
+					String cellValue = normalizeHeader(getCellValueAsString(cell));
+					System.out.println("Cell value is : " + cellValue);// <-- normalize the header
+					if (cellValue.equals("code")) codeCol = cell.getColumnIndex();
+					else if (cellValue.equals("short description")) shortDescCol = cell.getColumnIndex();
+					else if (cellValue.equals("modifier")) modifierCol = cell.getColumnIndex();
+					else if (cellValue.equals("age range")) ageRangeCol = cell.getColumnIndex();
+					else if (cellValue.equals("rate")) rateCol = cell.getColumnIndex();
+					else if (cellValue.equals("qualifying visit count")) qvcCol = cell.getColumnIndex();
+					else if (cellValue.equals("dental apm")) dentalApmCol = cell.getColumnIndex();
+					else if (cellValue.equals("excluded procedure codes")) excludedProcCol = cell.getColumnIndex();
+					else if (cellValue.equals("pps visit code")) ppsVisitCol = cell.getColumnIndex();
+					else if (cellValue.contains("effective date")) effectiveDateCol = cell.getColumnIndex();
+				}
+				if (codeCol != -1 && shortDescCol != -1 && qvcCol != -1 && dentalApmCol != -1
+						&& excludedProcCol != -1) {
+					headerFound = true;
+					headerRowNum = row.getRowNum();
+
+					// Write headers to output file
+					Row headerRow = outputSheet.createRow(outputRowNum++);
+					Row headerRow2 = outputSheet2.createRow(outputRowNum2++);
+					for (Cell cell : row) {
+						Cell newCell = headerRow.createCell(cell.getColumnIndex());
+						Cell newCell2 = headerRow2.createCell(cell.getColumnIndex());
+						newCell.setCellValue(normalizeHeader(getCellValueAsString(cell))); // clean header text
+						newCell2.setCellValue(normalizeHeader(getCellValueAsString(cell)));
+					}
+				}
+			} else {
+				if (row.getRowNum() <= headerRowNum)
+					continue; // Skip header rows
+
+				Cell qvcCell = row.getCell(qvcCol);
+				Cell dentalApmCell = row.getCell(dentalApmCol);
+				Cell excludedProcCell = row.getCell(excludedProcCol);
+				Cell rateCell = row.getCell(rateCol);
+
+				String qvc = getCellValueAsString(qvcCell);
+				String dentalApm = getCellValueAsString(dentalApmCell);
+				String excludedProc = getCellValueAsString(excludedProcCell);
+				String rateStr = getCellValueAsString(rateCell);
+
+				boolean baseCondition = "0".equals(qvc) && (dentalApm == null || dentalApm.isEmpty())
+						&& "Yes".equalsIgnoreCase(excludedProc);
+
+				if (baseCondition) {
+					// Always write matching rows into 1st output
+					Row newRow1 = outputSheet.createRow(outputRowNum++);
+					for (Cell cell : row) {
+						Cell newCell = newRow1.createCell(cell.getColumnIndex());
+						copyCellValue(cell, newCell);
+					}
+
+					// Extra condition for Rate = M
+					if ("M".equalsIgnoreCase(rateStr)) {
+						Row newRow2 = outputSheet2.createRow(outputRowNum2++);
+						for (Cell cell : row) {
+							Cell newCell = newRow2.createCell(cell.getColumnIndex());
+							if (cell.getColumnIndex() == rateCol) {
+								newCell.setCellValue(0.01); // override Rate to 0.01
+							} else {
+								copyCellValue(cell, newCell);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		fis.close();
+		workbook.close();
+
+		SimpleDateFormat sdf1 = new SimpleDateFormat("yyyyMMdd_HHmm");
+
+		String timestamp = sdf1.format(new Date());
+		String outputFilePath = "C:\\Users\\rajas\\Desktop\\SourcefiletoFS\\Output\\" + "PROCFiltered_Codes_"
+				+ timestamp + ".xlsx";
+		String outputFilePath2 = "C:\\Users\\rajas\\Desktop\\SourcefiletoFS\\Output\\" + "PROCFiltered_Codes_Manual"
+				+ timestamp + ".xlsx";
+
+		// Write output file
+		FileOutputStream fos = new FileOutputStream(new File(outputFilePath));
+		outputWorkbook.write(fos);
+		fos.close();
+		outputWorkbook.close();
+
+		FileOutputStream fos2 = new FileOutputStream(new File(outputFilePath2));
+		outputWorkbook2.write(fos2);
+		fos2.close();
+		outputWorkbook2.close();
+
+		System.out.println("Filtering completed. Output saved to: " + outputFilePath);
+
+	}
+
+	private static String normalizeHeader(String cellValue) {
+	    if (cellValue == null) return "";
+	    return cellValue.replaceAll("[\\r\\n\\u000B\\f\\u000C\\u0085\\u2028\\u2029]", " ") 
+	                    .replaceAll("\\s+", " ")
+	                    .trim()
+	                    .toLowerCase();
+	}
+
+	private static String getCellValueAsString(Cell cell) {
+		if (cell == null)
+			return "";
+		if (cell.getCellType() == CellType.STRING) {
+			return cell.getStringCellValue().trim();
+		} else if (cell.getCellType() == CellType.NUMERIC) {
+			return String.valueOf((int) cell.getNumericCellValue());
+		} else {
+			return "";
+		}
+	}
+
+	private static void copyCellValue(Cell source, Cell destination) {
+		if (source == null)
+			return;
+		switch (source.getCellType()) {
+		case STRING:
+			destination.setCellValue(source.getStringCellValue());
+			break;
+		case NUMERIC:
+			destination.setCellValue(source.getNumericCellValue());
+			break;
+		case BOOLEAN:
+			destination.setCellValue(source.getBooleanCellValue());
+			break;
+		default:
+			destination.setCellValue("");
+		}
+	}
+}
