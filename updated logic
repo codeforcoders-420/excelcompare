@@ -1,0 +1,113 @@
+private static void processFile(File inputFile, File outputFolder) throws IOException {
+    FileInputStream fis = new FileInputStream(inputFile);
+    Workbook workbook = new XSSFWorkbook(fis);
+    Sheet sheet = workbook.getSheetAt(0);
+
+    Workbook outputWorkbook1 = new XSSFWorkbook();
+    Sheet outputSheet1 = outputWorkbook1.createSheet("Filtered Codes");
+
+    Workbook outputWorkbook2 = new XSSFWorkbook();
+    Sheet outputSheet2 = outputWorkbook2.createSheet("Filtered Codes Manual");
+
+    boolean headerFound = false;
+    int headerRowNum = -1;
+
+    int codeCol = -1, shortDescCol = -1, modifierCol = -1, ageRangeCol = -1;
+    int rateCol = -1, qvcCol = -1, dentalApmCol = -1, excludedProcCol = -1;
+    int ppsVisitCol = -1, effectiveDateCol = -1;
+
+    int outputRowNum1 = 0;
+    int outputRowNum2 = 0;
+
+    for (Row row : sheet) {
+        if (!headerFound) {
+            for (Cell cell : row) {
+                String cellValue = normalizeHeader(getCellValueAsString(cell));
+                if (cellValue.equals("code")) codeCol = cell.getColumnIndex();
+                else if (cellValue.equals("short description")) shortDescCol = cell.getColumnIndex();
+                else if (cellValue.equals("modifier")) modifierCol = cell.getColumnIndex();
+                else if (cellValue.equals("age range")) ageRangeCol = cell.getColumnIndex();
+                else if (cellValue.equals("rate")) rateCol = cell.getColumnIndex();
+                else if (cellValue.equals("qualifying visit count")) qvcCol = cell.getColumnIndex();
+                else if (cellValue.equals("dental apm")) dentalApmCol = cell.getColumnIndex();
+                else if (cellValue.equals("excluded procedure codes")) excludedProcCol = cell.getColumnIndex();
+                else if (cellValue.equals("pps visit code")) ppsVisitCol = cell.getColumnIndex();
+                else if (cellValue.contains("effective date")) effectiveDateCol = cell.getColumnIndex();
+            }
+            if (codeCol != -1 && shortDescCol != -1 && qvcCol != -1 && dentalApmCol != -1 && excludedProcCol != -1) {
+                headerFound = true;
+                headerRowNum = row.getRowNum();
+
+                // Write headers to both output files
+                Row headerRow1 = outputSheet1.createRow(outputRowNum1++);
+                Row headerRow2 = outputSheet2.createRow(outputRowNum2++);
+                for (Cell cell : row) {
+                    Cell newCell1 = headerRow1.createCell(cell.getColumnIndex());
+                    Cell newCell2 = headerRow2.createCell(cell.getColumnIndex());
+                    newCell1.setCellValue(normalizeHeader(getCellValueAsString(cell)));
+                    newCell2.setCellValue(normalizeHeader(getCellValueAsString(cell)));
+                }
+            }
+        } else {
+            if (row.getRowNum() <= headerRowNum) continue; // skip header
+
+            Cell qvcCell = row.getCell(qvcCol);
+            Cell dentalApmCell = row.getCell(dentalApmCol);
+            Cell excludedProcCell = row.getCell(excludedProcCol);
+            Cell rateCell = row.getCell(rateCol);
+
+            String qvc = getCellValueAsString(qvcCell);
+            String dentalApm = getCellValueAsString(dentalApmCell);
+            String excludedProc = getCellValueAsString(excludedProcCell);
+            String rateStr = getCellValueAsString(rateCell).trim();
+
+            boolean baseCondition = "0".equals(qvc) && (dentalApm == null || dentalApm.isEmpty()) && "yes".equalsIgnoreCase(excludedProc);
+
+            if (baseCondition) {
+                // For 1st output: QualifyingVisitCount=0, DentalAPM=blank, ExcludedProc=Yes and Rate not M or 0
+                if (!"m".equalsIgnoreCase(rateStr) && !"0".equals(rateStr) && !"0.0".equals(rateStr)) {
+                    Row newRow1 = outputSheet1.createRow(outputRowNum1++);
+                    for (Cell cell : row) {
+                        Cell newCell = newRow1.createCell(cell.getColumnIndex());
+                        copyCellValue(cell, newCell);
+                    }
+                }
+
+                // For 2nd output: QualifyingVisitCount=0, DentalAPM=blank, ExcludedProc=Yes and Rate = M
+                if ("m".equalsIgnoreCase(rateStr)) {
+                    Row newRow2 = outputSheet2.createRow(outputRowNum2++);
+                    for (Cell cell : row) {
+                        Cell newCell = newRow2.createCell(cell.getColumnIndex());
+                        if (cell.getColumnIndex() == rateCol) {
+                            newCell.setCellValue(0.01); // Override Rate column with 0.01
+                        } else {
+                            copyCellValue(cell, newCell);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fis.close();
+    workbook.close();
+
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmm");
+    String timestamp = sdf.format(new Date());
+    String inputFileNameWithoutExt = inputFile.getName().substring(0, inputFile.getName().lastIndexOf('.'));
+
+    String outputFileName1 = "Filtered_Codes_" + inputFileNameWithoutExt + "_" + timestamp + ".xlsx";
+    String outputFileName2 = "Filtered_Codes_Manual_" + inputFileNameWithoutExt + "_" + timestamp + ".xlsx";
+
+    FileOutputStream fos1 = new FileOutputStream(new File(outputFolder, outputFileName1));
+    outputWorkbook1.write(fos1);
+    fos1.close();
+    outputWorkbook1.close();
+
+    FileOutputStream fos2 = new FileOutputStream(new File(outputFolder, outputFileName2));
+    outputWorkbook2.write(fos2);
+    fos2.close();
+    outputWorkbook2.close();
+
+    System.out.println("Processed: " + inputFile.getName());
+}
