@@ -1,0 +1,238 @@
+package pdftpexcel.extractdatafromexcel;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public class ExtractCodes {
+
+    public static void main(String[] args) throws IOException {
+
+        File inputFolder = new File("C:\\Users\\rajas\\Desktop\\SourcefiletoFS\\Input");
+        File outputFolder = new File("C:\\Users\\rajas\\Desktop\\SourcefiletoFS\\Output");
+
+        if (!outputFolder.exists()) {
+            outputFolder.mkdirs(); // create output folder if it doesn't exist
+        }
+
+        File[] files = inputFolder.listFiles((dir, name) -> name.toLowerCase().endsWith(".xlsx"));
+        if (files == null || files.length == 0) {
+            System.out.println("No Excel files found in input folder!");
+            return;
+        }
+
+        for (File inputFile : files) {
+            processFile(inputFile, outputFolder);
+        }
+
+        System.out.println("All files processed successfully!");
+    }
+
+    private static void processFile(File inputFile, File outputFolder) throws IOException {
+        FileInputStream fis = new FileInputStream(inputFile);
+        Workbook workbook = new XSSFWorkbook(fis);
+        Sheet sheet = workbook.getSheetAt(0);
+
+        Workbook outputWorkbook1 = new XSSFWorkbook();
+        Sheet outputSheet1 = outputWorkbook1.createSheet("Filtered Codes");
+
+        Workbook outputWorkbook2 = new XSSFWorkbook();
+        Sheet outputSheet2 = outputWorkbook2.createSheet("Filtered Codes Manual");
+
+        boolean headerFound = false;
+        int headerRowNum = -1;
+
+        int codeCol = -1, shortDescCol = -1, modifierCol = -1, ageRangeCol = -1;
+        int rateCol = -1, qvcCol = -1, dentalApmCol = -1, excludedProcCol = -1;
+        int ppsVisitCol = -1, effectiveDateCol = -1;
+
+        int outputRowNum1 = 0;
+        int outputRowNum2 = 0;
+
+        for (Row row : sheet) {
+            if (!headerFound) {
+                for (Cell cell : row) {
+                    String cellValue = normalizeHeader(getCellValueAsString(cell));
+                    if (cellValue.equals("code")) codeCol = cell.getColumnIndex();
+                    else if (cellValue.equals("short description")) shortDescCol = cell.getColumnIndex();
+                    else if (cellValue.equals("modifier")) modifierCol = cell.getColumnIndex();
+                    else if (cellValue.equals("age range")) ageRangeCol = cell.getColumnIndex();
+                    else if (cellValue.equals("rate")) rateCol = cell.getColumnIndex();
+                    else if (cellValue.equals("qualifying visit count")) qvcCol = cell.getColumnIndex();
+                    else if (cellValue.equals("dental apm")) dentalApmCol = cell.getColumnIndex();
+                    else if (cellValue.equals("excluded procedure codes")) excludedProcCol = cell.getColumnIndex();
+                    else if (cellValue.equals("pps visit code")) ppsVisitCol = cell.getColumnIndex();
+                    else if (cellValue.contains("effective date")) effectiveDateCol = cell.getColumnIndex();
+                }
+                if (codeCol != -1 && shortDescCol != -1 && qvcCol != -1 && dentalApmCol != -1 && excludedProcCol != -1) {
+                    headerFound = true;
+                    headerRowNum = row.getRowNum();
+
+                    // Write headers to both output files
+                    Row headerRow1 = outputSheet1.createRow(outputRowNum1++);
+                    Row headerRow2 = outputSheet2.createRow(outputRowNum2++);
+                    for (Cell cell : row) {
+                        Cell newCell1 = headerRow1.createCell(cell.getColumnIndex());
+                        Cell newCell2 = headerRow2.createCell(cell.getColumnIndex());
+                        newCell1.setCellValue(normalizeHeader(getCellValueAsString(cell)));
+                        newCell2.setCellValue(normalizeHeader(getCellValueAsString(cell)));
+                    }
+                }
+            } else {
+                if (row.getRowNum() <= headerRowNum) continue; // skip header row
+
+                Cell qvcCell = row.getCell(qvcCol);
+                Cell dentalApmCell = row.getCell(dentalApmCol);
+                Cell excludedProcCell = row.getCell(excludedProcCol);
+                Cell rateCell = row.getCell(rateCol);
+                Cell ppsVisitCell = row.getCell(ppsVisitCol);
+                Cell codeCell = row.getCell(codeCol);
+
+                String qvc = getCellValueAsString(qvcCell);
+                String dentalApm = getCellValueAsString(dentalApmCell);
+                String excludedProc = getCellValueAsString(excludedProcCell);
+                String rateStr = getCellValueAsString(rateCell).trim();
+                String ppsVisit = getCellValueAsString(ppsVisitCell).trim();
+                String codeCellText = getCellValueAsString(codeCell);
+
+                boolean baseCondition = "0".equals(qvc) && (dentalApm == null || dentalApm.isEmpty()) && "yes".equalsIgnoreCase(excludedProc);
+
+                if (baseCondition) {
+                    double rateValue = parseRate(rateStr);
+
+                    // For Second Output: Rate = M
+                    if ("m".equalsIgnoreCase(rateStr)) {
+                        Row newRow2 = outputSheet2.createRow(outputRowNum2++);
+                        for (Cell cell : row) {
+                            Cell newCell = newRow2.createCell(cell.getColumnIndex());
+                            if (cell.getColumnIndex() == rateCol) {
+                                newCell.setCellValue(0.01); // Override Rate to 0.01
+                            } else {
+                                copyCellValue(cell, newCell);
+                            }
+                        }
+                    }
+                    // For First Output: Rate is NOT M
+                    else {
+                        boolean writeRow = false;
+                        double updatedRate = -1.0;
+
+                        if (rateValue == 0.0) {
+                            if ("yes".equalsIgnoreCase(ppsVisit)) {
+                                updatedRate = extractSuggestedRate(codeCellText);
+                                if (updatedRate > 0) {
+                                    writeRow = true;
+                                }
+                            }
+                        }
+                        else if (rateValue > 0.0) {
+                            writeRow = true;
+                        }
+
+                        if (writeRow) {
+                            Row newRow1 = outputSheet1.createRow(outputRowNum1++);
+                            for (Cell cell : row) {
+                                Cell newCell = newRow1.createCell(cell.getColumnIndex());
+                                if (cell.getColumnIndex() == rateCol && updatedRate > 0) {
+                                    newCell.setCellValue(updatedRate); // Write suggested rate
+                                } else {
+                                    copyCellValue(cell, newCell);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        fis.close();
+        workbook.close();
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmm");
+        String timestamp = sdf.format(new Date());
+        String inputFileNameWithoutExt = inputFile.getName().substring(0, inputFile.getName().lastIndexOf('.'));
+
+        String outputFileName1 = "Filtered_Codes_" + inputFileNameWithoutExt + "_" + timestamp + ".xlsx";
+        String outputFileName2 = "Filtered_Codes_Manual_" + inputFileNameWithoutExt + "_" + timestamp + ".xlsx";
+
+        FileOutputStream fos1 = new FileOutputStream(new File(outputFolder, outputFileName1));
+        outputWorkbook1.write(fos1);
+        fos1.close();
+        outputWorkbook1.close();
+
+        FileOutputStream fos2 = new FileOutputStream(new File(outputFolder, outputFileName2));
+        outputWorkbook2.write(fos2);
+        fos2.close();
+        outputWorkbook2.close();
+
+        System.out.println("Processed: " + inputFile.getName());
+    }
+
+    private static String normalizeHeader(String cellValue) {
+        if (cellValue == null) return "";
+        return cellValue.replaceAll("[\\r\\n\\u000B\\f\\u000C\\u0085\\u2028\\u2029]", " ")
+                        .replaceAll("\\s+", " ")
+                        .trim()
+                        .toLowerCase();
+    }
+
+    private static String getCellValueAsString(Cell cell) {
+        if (cell == null) return "";
+        if (cell.getCellType() == CellType.STRING) {
+            return cell.getStringCellValue().trim();
+        } else if (cell.getCellType() == CellType.NUMERIC) {
+            if (DateUtil.isCellDateFormatted(cell)) {
+                return cell.getDateCellValue().toString();
+            } else {
+                return String.valueOf(cell.getNumericCellValue());
+            }
+        } else {
+            return "";
+        }
+    }
+
+    private static void copyCellValue(Cell source, Cell destination) {
+        if (source == null) return;
+        switch (source.getCellType()) {
+            case STRING:
+                destination.setCellValue(source.getStringCellValue());
+                break;
+            case NUMERIC:
+                destination.setCellValue(source.getNumericCellValue());
+                break;
+            case BOOLEAN:
+                destination.setCellValue(source.getBooleanCellValue());
+                break;
+            default:
+                destination.setCellValue("");
+        }
+    }
+
+    private static double extractSuggestedRate(String text) {
+        if (text == null || text.isEmpty()) return -1.0;
+        if (text.contains("Suggested MCO Reimbursement Rate")) {
+            try {
+                String[] parts = text.split("\\$");
+                if (parts.length > 1) {
+                    String amountStr = parts[1].trim().split("\\s+")[0];
+                    return Double.parseDouble(amountStr);
+                }
+            } catch (Exception e) {
+                return -1.0;
+            }
+        }
+        return -1.0;
+    }
+
+    private static double parseRate(String rateStr) {
+        if (rateStr == null || rateStr.isEmpty()) return 0.0;
+        try {
+            return Double.parseDouble(rateStr);
+        } catch (NumberFormatException e) {
+            return 0.0;
+        }
+    }
+}
