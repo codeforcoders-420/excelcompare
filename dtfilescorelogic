@@ -1,0 +1,85 @@
+processExcelFiles(List<File> files, String columnName, int lineNumber, int columnNumber)
+
+  <form id="folderForm">
+  <label>Select Folder:</label>
+  <input type="file" id="folderInput" webkitdirectory directory multiple required>
+  
+  <label for="columnName">Column Name:</label>
+  <input type="text" id="columnName" required>
+
+  <label for="lineNumber">Row Number:</label>
+  <input type="number" id="lineNumber" required>
+
+  <label for="columnNumber">Column Number:</label>
+  <input type="number" id="columnNumber" required>
+
+  <button type="submit">Submit</button>
+</form>
+
+<script>
+  document.getElementById("folderForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const files = document.getElementById("folderInput").files;
+    const columnName = document.getElementById("columnName").value;
+    const lineNumber = document.getElementById("lineNumber").value;
+    const columnNumber = document.getElementById("columnNumber").value;
+
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+    formData.append("columnName", columnName);
+    formData.append("lineNumber", lineNumber);
+    formData.append("columnNumber", columnNumber);
+
+    fetch("/process-excel-folder", {
+      method: "POST",
+      body: formData
+    })
+    .then(res => res.text())
+    .then(msg => alert(msg))
+    .catch(err => alert("Error: " + err));
+  });
+</script>
+
+
+  Backend
+
+  @PostMapping("/process-excel-folder")
+@ResponseBody
+public ResponseEntity<String> processExcelFolder(
+        @RequestParam("files") MultipartFile[] files,
+        @RequestParam("columnName") String columnName,
+        @RequestParam("lineNumber") int lineNumber,
+        @RequestParam("columnNumber") int columnNumber) {
+    try {
+        // Step 1: Create a temporary folder to simulate the "folder path"
+        File tempFolder = Files.createTempDirectory("uploadedFolder").toFile();
+
+        for (MultipartFile multipartFile : files) {
+            File newFile = new File(tempFolder, multipartFile.getOriginalFilename());
+            try (FileOutputStream fos = new FileOutputStream(newFile)) {
+                fos.write(multipartFile.getBytes());
+            }
+        }
+
+        // Step 2: Call your processing logic
+        File[] fileList = Objects.requireNonNull(tempFolder.listFiles());
+        for (File file : fileList) {
+            processExcelFile(file, columnName, lineNumber, columnNumber);
+        }
+
+        return ResponseEntity.ok("Files processed successfully.");
+    } catch (Exception ex) {
+        ex.printStackTrace();
+        return ResponseEntity.internalServerError().body("Error processing files.");
+    }
+}
+
+// Your actual Java method
+private void processExcelFile(File file, String columnName, int lineNumber, int columnNumber) {
+    // Your validation or business logic
+    System.out.println("Validating: " + file.getName());
+    // Use Apache POI or similar library to process
+}
