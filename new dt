@@ -1,0 +1,106 @@
+<div class="form-container">
+
+    <!-- Folder Selection -->
+    <div class="folder-section">
+        <label for="folderInput" class="label-style">Select Folder:</label>
+        <input type="file" id="folderInput" webkitdirectory directory multiple>
+    </div>
+
+    <!-- Dropdown Field -->
+    <div class="inputGroup">
+        <select id="marketDropdown" required>
+            <option value="" disabled selected>Select Market/Column Header</option>
+            <option value="Market1">Market1</option>
+            <option value="Market2">Market2</option>
+            <option value="Market3">Market3</option>
+        </select>
+    </div>
+
+    <!-- Row Number -->
+    <div class="inputGroup">
+        <input type="number" id="rowNumber" required autocomplete="off">
+        <label for="rowNumber">Enter Row Number</label>
+    </div>
+
+    <!-- Column Number -->
+    <div class="inputGroup">
+        <input type="number" id="columnNumber" required autocomplete="off">
+        <label for="columnNumber">Enter Column Number</label>
+    </div>
+
+    <!-- Button -->
+    <button class="submit-btn">Compare Rates</button>
+</div>
+
+
+
+
+**************************************
+
+.form-container {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f0f0f0;
+  padding: 2rem;
+  border-radius: 10px;
+  max-width: 400px;
+  margin: auto;
+}
+
+.folder-section {
+  margin-bottom: 1em;
+}
+
+.label-style {
+  font-weight: bold;
+  margin-bottom: 0.5em;
+  display: block;
+}
+
+/* Floating Input Field Style */
+.inputGroup {
+  margin: 1em 0;
+  max-width: 100%;
+  position: relative;
+}
+
+.inputGroup input,
+.inputGroup select {
+  font-size: 1em;
+  padding: 0.8em;
+  border: 2px solid rgb(180, 180, 180);
+  background-color: transparent;
+  border-radius: 20px;
+  width: 100%;
+  outline: none;
+}
+
+.inputGroup label {
+  position: absolute;
+  left: 1em;
+  top: 0.8em;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  color: rgb(100, 100, 100);
+  background-color: #f0f0f0;
+  padding: 0 0.4em;
+}
+
+.inputGroup :is(input:focus, input:valid)~label {
+  transform: translateY(-1.5em) scale(0.85);
+  color: #555;
+}
+
+.inputGroup :is(input:focus, input:valid) {
+  border-color: rgb(120, 120, 220);
+}
+
+/* Button */
+.submit-btn {
+  padding: 0.7em 2em;
+  border: none;
+  border-radius: 20px;
+  background-color: #0066ff;
+  color: white;
+  font-size: 1em;
+  cursor: pointer;
+}
