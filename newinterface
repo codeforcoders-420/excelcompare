@@ -1,0 +1,105 @@
+<!-- Add this modal at the bottom of your homepage -->
+<div id="addFolderModal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <h3>Select Details to Create Folder</h3>
+
+    <label>Year:</label>
+    <select id="yearDropdown">
+      <option value="2024">2024</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+    </select>
+
+    <label>LOB:</label>
+    <select id="lobDropdown">
+      <option value="GA">GA</option>
+      <option value="IN">IN</option>
+      <option value="MA">MA</option>
+    </select>
+
+    <label>Location:</label>
+    <select id="locationDropdown">
+      <option disabled selected>Select LOB first</option>
+    </select>
+
+    <button onclick="createFolder()">Create Folder</button>
+    <button onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+
+****************************************************************
+
+// Show modal when Add is clicked
+function openAddFolderModal() {
+  document.getElementById('addFolderModal').style.display = 'block';
+}
+
+function closeModal() {
+  document.getElementById('addFolderModal').style.display = 'none';
+}
+
+// Dynamic population based on LOB selection
+document.getElementById('lobDropdown').addEventListener('change', function () {
+  const selectedLob = this.value;
+  fetch(`/fetchLocations?lob=${selectedLob}`)
+    .then(response => response.json())
+    .then(data => {
+      const locationDropdown = document.getElementById('locationDropdown');
+      locationDropdown.innerHTML = ''; // Clear previous
+      data.forEach(loc => {
+        const option = document.createElement('option');
+        option.value = loc;
+        option.textContent = loc;
+        locationDropdown.appendChild(option);
+      });
+    });
+});
+
+// Call backend to create folder
+function createFolder() {
+  const year = document.getElementById('yearDropdown').value;
+  const lob = document.getElementById('lobDropdown').value;
+  const location = document.getElementById('locationDropdown').value;
+
+  const folderName = `${year}_${lob}_${location}`;
+  fetch(`/createFolder?folderName=${encodeURIComponent(folderName)}`, {
+    method: 'POST'
+  })
+    .then(res => {
+      if (res.ok) {
+        alert('Folder created successfully!');
+        closeModal();
+      } else {
+        alert('Failed to create folder');
+      }
+    });
+}
+
+
+*************************************************************************
+
+@RestController
+public class FolderController {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @PostMapping("/createFolder")
+    public ResponseEntity<String> createFolder(@RequestParam String folderName) {
+        File newFolder = new File("C:/Users/Files/TFS/" + folderName);
+        if (!newFolder.exists()) {
+            newFolder.mkdirs();
+            return ResponseEntity.ok("Folder created");
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body("Folder already exists");
+    }
+
+    @GetMapping("/fetchLocations")
+    public ResponseEntity<List<String>> fetchLocations(@RequestParam String lob) {
+        String query = "SELECT emp_location FROM employee_table WHERE emp_id LIKE ?";
+        List<String> locations = jdbcTemplate.queryForList(query, new Object[]{"%" + lob + "%"}, String.class);
+        return ResponseEntity.ok(locations);
+    }
+}
+
