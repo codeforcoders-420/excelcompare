@@ -1,0 +1,197 @@
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchButton = document.getElementById("searchButton");
+    const searchInput = document.getElementById("searchInput");
+    const resultsTable = document.getElementById("resultsTable");
+    const resultsBody = document.getElementById("resultsBody");
+    const message = document.getElementById("message");
+
+    let currentTFS = "";
+
+    searchButton.addEventListener("click", function () {
+        const folderName = searchInput.value.trim();
+        if (!folderName) {
+            message.textContent = "Please enter a TFS # to begin search.";
+            resultsTable.style.display = "none";
+            return;
+        }
+
+        // Save current TFS for use in modal folder creation
+        currentTFS = folderName;
+
+        message.textContent = "";
+        resultsBody.innerHTML = "";
+
+        fetch(`/checkFolder?folderName=${folderName}`)
+            .then(response => {
+                if (!response.ok) throw new Error("Folder check failed.");
+                return response.json();
+            })
+            .then(data => {
+                resultsTable.style.display = "table";
+                const row = document.createElement("tr");
+
+                const tfsCell = document.createElement("td");
+                tfsCell.innerHTML = `<a href="/openRGStory?storyNumber=${folderName}">${folderName}</a>`;
+                row.appendChild(tfsCell);
+
+                const actionCell = document.createElement("td");
+                const button = document.createElement("button");
+                button.className = "add-button";
+
+                if (data.exists) {
+                    button.textContent = "Exists";
+                    button.disabled = true;
+                } else {
+                    button.textContent = "Add";
+                    button.onclick = function () {
+                        openAddFolderModal(currentTFS); // trigger modal
+                    };
+                }
+
+                actionCell.appendChild(button);
+                row.appendChild(actionCell);
+                resultsBody.appendChild(row);
+            })
+            .catch(error => {
+                console.error(error);
+                message.textContent = "Error occurred while searching.";
+                resultsTable.style.display = "none";
+            });
+    });
+
+    // LOB change triggers Location dropdown load
+    document.getElementById('lobDropdown').addEventListener('change', function () {
+        const lob = this.value;
+        fetch(`/fetchLocations?lob=${lob}`)
+            .then(res => res.json())
+            .then(data => {
+                const locationDropdown = document.getElementById("locationDropdown");
+                locationDropdown.innerHTML = "";
+                data.forEach(loc => {
+                    const option = document.createElement("option");
+                    option.value = loc;
+                    option.textContent = loc;
+                    locationDropdown.appendChild(option);
+                });
+            });
+    });
+
+    // Modal open/close
+    window.openAddFolderModal = function (tfs) {
+        document.getElementById("addFolderModal").style.display = "block";
+        document.getElementById("modal-tfs").value = tfs;
+    };
+
+    window.closeAddFolderModal = function () {
+        document.getElementById("addFolderModal").style.display = "none";
+    };
+
+    // Create folder from modal selections
+    window.createFolderFromModal = function () {
+        const tfs = document.getElementById("modal-tfs").value;
+        const year = document.getElementById("yearDropdown").value;
+        const lob = document.getElementById("lobDropdown").value;
+        const location = document.getElementById("locationDropdown").value;
+
+        const folderName = `${year}_${lob}_${location}_${tfs}`;
+
+        fetch(`/createFolder?folderName=${encodeURIComponent(folderName)}`, {
+            method: "POST"
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to create folder");
+            alert("Folder created successfully!");
+            closeAddFolderModal();
+            searchButton.click(); // re-trigger search
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Folder creation failed.");
+        });
+    };
+});
+</script>
+
+
+************************************************************************
+
+<div id="addFolderModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3>Create Folder for TFS: <input type="text" id="modal-tfs" readonly></h3>
+
+        <label>Year:</label>
+        <select id="yearDropdown">
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+        </select>
+
+        <label>LOB:</label>
+        <select id="lobDropdown">
+            <option value="GA">GA</option>
+            <option value="IN">IN</option>
+            <option value="MA">MA</option>
+        </select>
+
+        <label>Location:</label>
+        <select id="locationDropdown">
+            <option selected disabled>Select LOB first</option>
+        </select>
+
+        <br><br>
+        <button onclick="createFolderFromModal()">Create Folder</button>
+        <button onclick="closeAddFolderModal()">Cancel</button>
+    </div>
+</div>
+
+
+***************************************************************************
+
+package com.example.portal.controller;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@RestController
+public class FolderController {
+
+    @Value("${shared.folder.base-path:C:/Users/files/TFS}")
+    private String baseFolderPath;
+
+    // Check if folder exists
+    @GetMapping("/checkFolder")
+    public Map<String, Boolean> checkFolder(@RequestParam String folderName) {
+        File folder = new File(baseFolderPath, folderName);
+        boolean exists = folder.exists();
+        return Collections.singletonMap("exists", exists);
+    }
+
+    // Create folder if not present
+    @PostMapping("/createFolder")
+    public String createFolder(@RequestParam String folderName) {
+        File folder = new File(baseFolderPath, folderName);
+        if (!folder.exists()) {
+            boolean created = folder.mkdirs();
+            if (!created) throw new RuntimeException("Failed to create folder: " + folderName);
+        }
+        return "Folder created successfully: " + folderName;
+    }
+
+    // Return location list based on LOB (simulate DB call)
+    @GetMapping("/fetchLocations")
+    public List<String> fetchLocations(@RequestParam String lob) {
+        // Simulate location mapping from database
+        Map<String, List<String>> mockLobLocationMap = new HashMap<>();
+        mockLobLocationMap.put("GA", Arrays.asList("ATLANTA", "SAVANNAH"));
+        mockLobLocationMap.put("IN", Arrays.asList("INDIANAPOLIS", "FORT WAYNE"));
+        mockLobLocationMap.put("MA", Arrays.asList("BOSTON", "SPRINGFIELD"));
+
+        return mockLobLocationMap.getOrDefault(lob, Collections.singletonList("Unknown"));
+    }
+}
