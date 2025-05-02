@@ -281,3 +281,108 @@ public class FolderController {
     color: #333;
 }
 
+
+******************************************************
+
+.modal-content {
+    background-color: white;
+    padding: 25px 30px;
+    border-radius: 15px;
+    width: fit-content;
+    max-width: 95%;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    font-family: 'Segoe UI', sans-serif;
+    position: relative;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 20px;
+    text-align: center;
+    color: #333;
+}
+
+/* Layout container for horizontal fields */
+.modal-fields-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap; /* Optional: wrap on smaller screens */
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+/* Style for each select/input */
+.modal-fields-row select,
+.modal-fields-row input {
+    padding: 10px;
+    border-radius: 10px;
+    border: 1.5px solid #ccc;
+    font-size: 14px;
+    outline: none;
+    background-color: #f9f9f9;
+    min-width: 120px;
+}
+
+/* Buttons */
+.modal-content button {
+    width: 100%;
+    padding: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    font-size: 15px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-bottom: 10px;
+}
+
+.modal-content button:hover {
+    background-color: #0056b3;
+}
+
+
+
+*******************
+
+<div class="modal-content">
+  <h3>Create Folder for TFS: <span id="tfsNumberLabel">123456</span></h3>
+
+  <div class="modal-fields-row">
+    <select id="yearSelect">
+      <option value="2024">2024</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+    </select>
+
+    <select id="lobSelect">
+      <option value="GA">GA</option>
+      <option value="IN">IN</option>
+      <option value="MA">MA</option>
+    </select>
+
+    <select id="locationSelect">
+      <!-- Filled dynamically from DB -->
+    </select>
+  </div>
+
+  <button id="createFolderBtn">Create Folder</button>
+  <button id="cancelBtn">Cancel</button>
+</div>
+
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5); /* should be translucent */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
+
