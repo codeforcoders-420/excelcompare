@@ -1,0 +1,38 @@
+import java.io.File;
+import java.nio.file.*;
+import java.util.*;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+public class FolderCheckController {
+
+    private static final String SHARE_FOLDER_PATH = "C:/users/TFS";
+
+    @GetMapping("/checkFolder")
+    public ResponseEntity<Map<String, Object>> checkFolder(@RequestParam("folderName") String folderName) {
+        if (folderName == null || folderName.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Folder name cannot be empty."));
+        }
+
+        try {
+            Path basePath = Paths.get(SHARE_FOLDER_PATH);
+            Optional<Path> matchingFolder = Files.walk(basePath)
+                    .filter(Files::isDirectory)
+                    .filter(path -> path.getFileName().toString().equalsIgnoreCase(folderName))
+                    .findFirst();
+
+            boolean exists = matchingFolder.isPresent();
+            String matchedPath = exists ? matchingFolder.get().toString() : "";
+
+            return ResponseEntity.ok(Map.of(
+                "exists", exists,
+                "path", matchedPath
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Error occurred: " + e.getMessage()));
+        }
+    }
+}
+
+
