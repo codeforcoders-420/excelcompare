@@ -1,0 +1,55 @@
+package com.example.tfsindexer;
+
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Stream;
+
+@Component
+public class TfsFolderIndex {
+
+    private final ConcurrentMap<String, String> tfsPathMap = new ConcurrentHashMap<>();
+    private static final String BASE_PATH = "C:/users/TFS";
+
+    // Refresh every 5 minutes
+    @Scheduled(fixedRate = 5 * 60 * 1000)
+    public void refreshIndex() {
+        tfsPathMap.clear();
+        try (Stream<Path> paths = Files.walk(Paths.get(BASE_PATH))) {
+            paths.filter(Files::isDirectory).forEach(path -> {
+                String folderName = path.getFileName().toString();
+                // Avoid overwriting if the same folder name exists in multiple places
+                tfsPathMap.putIfAbsent(folderName, path.toString());
+            });
+        } catch (IOException e) {
+            System.err.println("[TFS Index] Failed to refresh: " + e.getMessage());
+        }
+    }
+
+    public Optional<String> getFolderPath(String folderName) {
+        return Optional.ofNullable(tfsPathMap.get(folderName));
+    }
+
+    public boolean folderExists(String folderName) {
+        return tfsPathMap.containsKey(folderName);
+    }
+}
+
+*****************************************
+
+@Autowired
+private TfsFolderIndex tfsFolderIndex;
+
+@GetMapping("/checkFolder")
+public ResponseEntity<Map<String, Object>> checkFolder(@RequestParam("folderName") String folderName) {
+    if (folderName == null || folderName.isEmpty()) {
+        return ResponseEntity.badRequest().body(Map.of("error", "Folder name cannot be empty."));
+    }
+    boolean exists = tfsFolderIndex.folderExists(folderName);
+    return ResponseEntity.ok(Map.of("exists", exists));
+}
