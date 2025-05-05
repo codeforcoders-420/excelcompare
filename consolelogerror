@@ -1,0 +1,47 @@
+fetch('/processReport', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        selectedFeeSchedules: selectedFeeSchedules,
+        selectedEnvs: selectedEnvs,
+        storyNumber: storyNumber
+    })
+})
+.then(async (response) => {
+    const contentType = response.headers.get("content-type");
+    let responseBody;
+
+    if (contentType && contentType.includes("application/json")) {
+        responseBody = await response.json();
+    } else {
+        responseBody = await response.text();
+    }
+
+    if (!response.ok) {
+        console.error("Server responded with error:", responseBody);
+        throw new Error(responseBody);  // triggers the .catch() block
+    }
+
+    return responseBody;
+})
+.then(data => {
+    console.log("Success:", data);
+    processBtn.innerText = "Generate Report";
+    alert("Data backup completed!");
+    modal.style.display = "none";
+})
+.catch(error => {
+    console.error("Process Error:", error.message);
+    processBtn.innerText = "Generate Report";
+    alert("An error occurred. Check console for details.");
+});
+
+**************************************************
+
+catch (Exception e) {
+    e.printStackTrace(); // This logs full stack trace in the server logs
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                         .body("Failure: " + e.getMessage()); // This shows the exception message on the webpage console
+}
