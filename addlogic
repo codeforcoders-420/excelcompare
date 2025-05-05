@@ -1,0 +1,31 @@
+@Component
+public class TfsFolderIndex {
+
+    private final ConcurrentMap<String, String> tfsPathMap = new ConcurrentHashMap<>();
+    private static final String BASE_PATH = "C:/users/TFS";
+
+    @Scheduled(fixedRate = 5 * 60 * 1000) // every 5 minutes
+    public void refreshIndex() {
+        tfsPathMap.clear();
+        try (Stream<Path> paths = Files.walk(Paths.get(BASE_PATH))) {
+            paths.filter(Files::isDirectory).forEach(path -> {
+                String folderName = path.getFileName().toString();
+
+                // Store only if folderName is a valid TFS folder (like 123456)
+                if (folderName.matches("\\d{5,6}")) {  // match TFS# pattern
+                    tfsPathMap.put(folderName, path.toString());
+                }
+            });
+        } catch (IOException e) {
+            System.err.println("Failed to refresh TFS folder index: " + e.getMessage());
+        }
+    }
+
+    public Optional<String> getFolderPath(String folderName) {
+        return Optional.ofNullable(tfsPathMap.get(folderName));
+    }
+
+    public boolean folderExists(String folderName) {
+        return tfsPathMap.containsKey(folderName);
+    }
+}
