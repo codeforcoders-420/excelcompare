@@ -1,0 +1,56 @@
+<div id="loader-wrapper" style="display: none; position: fixed; top: 45%; left: 48%; z-index: 9999;">
+    <div id="wifi-loader">
+        <svg class="circle-outer" viewBox="0 0 86 86">
+            <circle class="back" cx="43" cy="43" r="40"></circle>
+            <circle class="front" cx="43" cy="43" r="40"></circle>
+        </svg>
+        <svg class="circle-middle" viewBox="0 0 60 60">
+            <circle class="back" cx="30" cy="30" r="27"></circle>
+            <circle class="front" cx="30" cy="30" r="27"></circle>
+        </svg>
+        <svg class="circle-inner" viewBox="0 0 34 34">
+            <circle class="back" cx="17" cy="17" r="14"></circle>
+            <circle class="front" cx="17" cy="17" r="14"></circle>
+        </svg>
+        <div class="text" data-text="Searching"></div>
+    </div>
+</div>
+***************************************************************
+
+searchButton.addEventListener("click", function () {
+    const folderName = searchInput.value.trim();
+    if (!folderName) {
+        message.textContent = "Please enter a TFS # to begin search.";
+        resultsTable.style.display = "none";
+        return;
+    }
+
+    // 🟡 Show loader
+    document.getElementById("loader-wrapper").style.display = "block";
+
+    // Clear previous results
+    message.textContent = "";
+    resultsBody.innerHTML = "";
+
+    fetch(`/checkFolder?folderName=${folderName}`)
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error("Folder check failed.");
+            }
+            return response.json();
+        })
+        .then((data) => {
+            // Your logic here...
+
+            // ✅ Hide loader after results loaded
+            document.getElementById("loader-wrapper").style.display = "none";
+        })
+        .catch((error) => {
+            console.error(error);
+            message.textContent = "Error occurred while searching.";
+            resultsTable.style.display = "none";
+
+            // ❌ Hide loader even on error
+            document.getElementById("loader-wrapper").style.display = "none";
+        });
+});
