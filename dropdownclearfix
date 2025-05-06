@@ -1,0 +1,36 @@
+document.getElementById("lobDropdown").addEventListener("change", function () {
+    const selectedLob = this.value;
+    const feeScheduleDropdown = document.getElementById("feeScheduleDropdown");
+
+    // ✅ Clear ALL existing options
+    while (feeScheduleDropdown.firstChild) {
+        feeScheduleDropdown.removeChild(feeScheduleDropdown.firstChild);
+    }
+
+    // Add the default placeholder again
+    const defaultOption = document.createElement("option");
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    defaultOption.textContent = "Select Fee Schedule";
+    feeScheduleDropdown.appendChild(defaultOption);
+
+    // ✅ Fetch new Fee Schedule values for selected LOB
+    fetch(`/fetchfeescheduleid?lob=${encodeURIComponent(selectedLob)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Failed to fetch fee schedules");
+            }
+            return response.json();
+        })
+        .then(feeSchedules => {
+            feeSchedules.forEach(fs => {
+                const option = document.createElement("option");
+                option.value = fs;
+                option.textContent = fs;
+                feeScheduleDropdown.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error("Error loading fee schedules:", error);
+        });
+});
