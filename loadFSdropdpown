@@ -1,0 +1,42 @@
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const lobSelect = document.getElementById("lobSelect");
+    const fsSelect = document.getElementById("fsSelect");
+
+    lobSelect.addEventListener("change", function () {
+        const selectedLob = lobSelect.value;
+        fsSelect.innerHTML = "<option value=''>Loading...</option>";
+
+        fetch(`/fetchfeescheduleid?lob=${encodeURIComponent(selectedLob)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Failed to fetch fee schedule IDs");
+                }
+                return response.json();
+            })
+            .then(feeSchedules => {
+                fsSelect.innerHTML = "<option value=''>Select Fee Schedule</option>";
+                feeSchedules.forEach(schedule => {
+                    const option = document.createElement("option");
+                    option.value = schedule;
+                    option.textContent = schedule;
+                    fsSelect.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error("Error loading fee schedules:", error);
+                fsSelect.innerHTML = "<option value=''>Error loading schedules</option>";
+            });
+    });
+});
+</script>
+
+
+
+
+<label>
+  <select id="fsSelect" required class="input">
+    <option value="">Select Fee Schedule</option>
+  </select>
+  <span>Fee Schedule</span>
+</label>
