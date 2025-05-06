@@ -1,0 +1,74 @@
+<!-- Modal Container - hidden initially -->
+<div id="tfsModalOverlay" class="modal-overlay" style="display: none;">
+  <div class="form">
+    <p class="title">TFS Folder Details</p>
+    <p class="message">Please provide details to check folder.</p>
+
+    <label>
+      <select id="yearSelect" required class="input">
+        <option value="">Select Year</option>
+        <option value="2024">2024</option>
+        <option value="2025">2025</option>
+        <option value="2026">2026</option>
+      </select>
+      <span>Year</span>
+    </label>
+
+    <label>
+      <select id="lobSelect" required class="input">
+        <option value="">Select LOB</option>
+        <option value="GA">GA</option>
+        <option value="MA">MA</option>
+        <option value="OH">OH</option>
+        <option value="IN">IN</option>
+        <option value="KY">KY</option>
+        <option value="CA">CA</option>
+      </select>
+      <span>LOB</span>
+    </label>
+
+    <label>
+      <select id="fsSelect" required class="input">
+        <option value="">Select Fee Schedule</option>
+      </select>
+      <span>Fee Schedule</span>
+    </label>
+
+    <button class="submit" id="checkFolderBtn">Check Folder</button>
+  </div>
+</div>
+
+
+***************************
+
+searchButton.addEventListener("click", function () {
+  const folderName = searchInput.value.trim();
+  if (!folderName) {
+    message.textContent = "Please enter a TFS # to begin search.";
+    resultsTable.style.display = "none";
+    return;
+  }
+
+  // Show the modal to collect Year, LOB, FS
+  document.getElementById("tfsModalOverlay").style.display = "flex";
+
+  // Optionally set focus on year dropdown
+  document.getElementById("yearSelect").focus();
+});
+
+
+***********************************
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100dvh;
+  width: 100dvw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 999;
+}
