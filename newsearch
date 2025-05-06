@@ -1,0 +1,433 @@
+@GetMapping("/checkStructuredFolder")
+public ResponseEntity<Map<String, Object>> checkStructuredFolder(
+        @RequestParam String year,
+        @RequestParam String lob,
+        @RequestParam String feeScheduleId,
+        @RequestParam String tfsNumber) {
+
+    String basePath = "C:/users/TFS";
+    Path folderPath = Paths.get(basePath, year, lob, feeScheduleId, tfsNumber);
+
+    boolean exists = Files.exists(folderPath) && Files.isDirectory(folderPath);
+
+    Map<String, Object> response = new HashMap<>();
+    response.put("exists", exists);
+    response.put("path", folderPath.toString());
+
+    return ResponseEntity.ok(response);
+}
+
+*************************************************
+
+function checkFolderFromModal() {
+    const year = document.getElementById('yearDropdown').value;
+    const lob = document.getElementById('lobDropdown').value;
+    const feeScheduleId = document.getElementById('feeDropdown').value;
+    const tfsNumber = document.getElementById('tfsInput').value;
+
+    fetch(`/checkStructuredFolder?year=${year}&lob=${lob}&feeScheduleId=${feeScheduleId}&tfsNumber=${tfsNumber}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.exists) {
+                alert(`Folder exists at ${data.path}`);
+                // maybe disable Add button, or mark it as Exists
+            } else {
+                alert("Folder doesn't exist, you may proceed to add it.");
+                // show Add button or proceed to creation flow
+            }
+        })
+        .catch(err => {
+            console.error("Error checking folder:", err);
+        });
+}
+***************************************************
+
+@PostMapping("/createStructuredFolder")
+public ResponseEntity<Map<String, Object>> createStructuredFolder(
+        @RequestParam String year,
+        @RequestParam String lob,
+        @RequestParam String feeScheduleId,
+        @RequestParam String tfsNumber) {
+
+    String basePath = "C:/users/TFS";
+    Path folderPath = Paths.get(basePath, year, lob, feeScheduleId, tfsNumber);
+
+    Map<String, Object> response = new HashMap<>();
+
+    try {
+        if (Files.exists(folderPath)) {
+            response.put("status", "already_exists");
+            response.put("message", "Folder already exists at: " + folderPath);
+        } else {
+            Files.createDirectories(folderPath);
+            response.put("status", "created");
+            response.put("message", "Folder created at: " + folderPath);
+        }
+        return ResponseEntity.ok(response);
+    } catch (IOException e) {
+        response.put("status", "error");
+        response.put("message", "Error creating folder: " + e.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+}
+**********************************************************
+
+function createFolderFromModal() {
+    const year = document.getElementById('yearDropdown').value;
+    const lob = document.getElementById('lobDropdown').value;
+    const feeScheduleId = document.getElementById('feeDropdown').value;
+    const tfsNumber = document.getElementById('tfsInput').value;
+
+    const url = `/createStructuredFolder?year=${year}&lob=${lob}&feeScheduleId=${feeScheduleId}&tfsNumber=${tfsNumber}`;
+
+    fetch(url, {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert(data.message);
+    })
+    .catch(err => {
+        console.error("Error creating folder:", err);
+        alert("Failed to create folder");
+    });
+}
+
+*********************************************************
+
+<!-- Modal Container -->
+<div id="folderModal" class="form" style="display: none;">
+  <p class="title">TFS Folder Setup</p>
+  <p class="message">Enter details to check or create TFS folder</p>
+
+  <!-- TFS Input -->
+  <label>
+    <input required="" placeholder="" type="text" class="input" id="tfsInput" />
+    <span>TFS Number</span>
+  </label>
+
+  <!-- Year Dropdown -->
+  <label>
+    <select class="input" id="yearDropdown" required>
+      <option value="" disabled selected>Select Year</option>
+      <option value="2024">2024</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+    </select>
+    <span>Year</span>
+  </label>
+
+  <!-- LOB Dropdown -->
+  <label>
+    <select class="input" id="lobDropdown" required onchange="fetchFeeSchedules()">
+      <option value="" disabled selected>Select LOB</option>
+      <option value="MA">MA</option>
+      <option value="GA">GA</option>
+      <option value="OH">OH</option>
+      <option value="IN">IN</option>
+      <option value="KY">KY</option>
+      <option value="CA">CA</option>
+    </select>
+    <span>LOB</span>
+  </label>
+
+  <!-- Fee Schedule Dropdown -->
+  <label>
+    <select class="input" id="feeDropdown" required>
+      <option value="" disabled selected>Select Fee Schedule</option>
+    </select>
+    <span>Fee Schedule</span>
+  </label>
+
+  <button class="submit" onclick="checkFolderExistence()">Check Folder</button>
+  <button class="submit" onclick="createFolderFromModal()">Create Folder</button>
+</div>
+
+*************************************************
+
+function fetchFeeSchedules() {
+    const lob = document.getElementById('lobDropdown').value;
+    const feeDropdown = document.getElementById('feeDropdown');
+    feeDropdown.innerHTML = '<option disabled selected>Loading...</option>';
+
+    fetch(`/fetchfeeschedules?lob=${lob}`)
+        .then(res => res.json())
+        .then(data => {
+            feeDropdown.innerHTML = '<option disabled selected>Select Fee Schedule</option>';
+            data.forEach(fee => {
+                const option = document.createElement("option");
+                option.value = fee;
+                option.text = fee;
+                feeDropdown.appendChild(option);
+            });
+        })
+        .catch(err => {
+            console.error("Failed to load fee schedules:", err);
+        });
+}
+
+function checkFolderExistence() {
+    const year = document.getElementById('yearDropdown').value;
+    const lob = document.getElementById('lobDropdown').value;
+    const feeScheduleId = document.getElementById('feeDropdown').value;
+    const tfsNumber = document.getElementById('tfsInput').value;
+
+    fetch(`/checkFolderPath?year=${year}&lob=${lob}&feeScheduleId=${feeScheduleId}&tfsNumber=${tfsNumber}`)
+        .then(res => res.json())
+        .then(data => {
+            alert(data.exists ? "Folder Exists" : "Folder Not Found");
+        });
+}
+
+function createFolderFromModal() {
+    const year = document.getElementById('yearDropdown').value;
+    const lob = document.getElementById('lobDropdown').value;
+    const feeScheduleId = document.getElementById('feeDropdown').value;
+    const tfsNumber = document.getElementById('tfsInput').value;
+
+    const url = `/createStructuredFolder?year=${year}&lob=${lob}&feeScheduleId=${feeScheduleId}&tfsNumber=${tfsNumber}`;
+
+    fetch(url, {
+        method: 'POST'
+    })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+        })
+        .catch(err => {
+            console.error("Error creating folder:", err);
+            alert("Failed to create folder");
+        });
+}
+
+****************************************************************
+@GetMapping("/checkFolderPath")
+public ResponseEntity<Map<String, Object>> checkFolderPath(
+        @RequestParam String year,
+        @RequestParam String lob,
+        @RequestParam String feeScheduleId,
+        @RequestParam String tfsNumber) {
+
+    String basePath = "C:/users/TFS";
+    Path path = Paths.get(basePath, year, lob, feeScheduleId, tfsNumber);
+    Map<String, Object> result = new HashMap<>();
+    result.put("exists", Files.exists(path));
+    return ResponseEntity.ok(result);
+}
+
+@PostMapping("/createStructuredFolder")
+public ResponseEntity<Map<String, Object>> createStructuredFolder(
+        @RequestParam String year,
+        @RequestParam String lob,
+        @RequestParam String feeScheduleId,
+        @RequestParam String tfsNumber) {
+
+    String basePath = "C:/users/TFS";
+    Path folderPath = Paths.get(basePath, year, lob, feeScheduleId, tfsNumber);
+    Map<String, Object> response = new HashMap<>();
+
+    try {
+        if (Files.exists(folderPath)) {
+            response.put("status", "already_exists");
+            response.put("message", "Folder already exists at: " + folderPath);
+        } else {
+            Files.createDirectories(folderPath);
+            response.put("status", "created");
+            response.put("message", "Folder created at: " + folderPath);
+        }
+        return ResponseEntity.ok(response);
+    } catch (IOException e) {
+        response.put("status", "error");
+        response.put("message", "Error creating folder: " + e.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+}
+
+**********************************************************************
+
+<!-- Overlay Modal with Blur and Close -->
+<div id="folderOverlay" class="overlay" style="display: none;">
+  <div class="overlay-content">
+    <span class="close-btn" onclick="closeOverlay()">&times;</span>
+    <form class="form">
+      <p class="title">TFS Folder Setup</p>
+      <p class="message">Enter details to check or create TFS folder</p>
+
+      <label>
+        <input required="" placeholder="" type="text" class="input" id="tfsInput" />
+        <span>TFS Number</span>
+      </label>
+
+      <label>
+        <select class="input" id="yearDropdown" required>
+          <option value="" disabled selected>Select Year</option>
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+        </select>
+        <span>Year</span>
+      </label>
+
+      <label>
+        <select class="input" id="lobDropdown" required onchange="fetchFeeSchedules()">
+          <option value="" disabled selected>Select LOB</option>
+          <option value="MA">MA</option>
+          <option value="GA">GA</option>
+          <option value="OH">OH</option>
+          <option value="IN">IN</option>
+          <option value="KY">KY</option>
+          <option value="CA">CA</option>
+        </select>
+        <span>LOB</span>
+      </label>
+
+      <label>
+        <select class="input" id="feeDropdown" required>
+          <option value="" disabled selected>Select Fee Schedule</option>
+        </select>
+        <span>Fee Schedule</span>
+      </label>
+
+      <button class="submit" type="button" onclick="checkFolderExistence()">Check Folder</button>
+      <button class="submit" type="button" onclick="createFolderFromModal()">Create Folder</button>
+    </form>
+  </div>
+</div>
+
+<style>
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.overlay-content {
+  position: relative;
+  background: white;
+  padding: 20px;
+  border-radius: 20px;
+  width: 400px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.close-btn {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 24px;
+  color: red;
+  cursor: pointer;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>
+
+<script>
+function openOverlay() {
+  document.getElementById("folderOverlay").style.display = "flex";
+}
+
+function closeOverlay() {
+  document.getElementById("folderOverlay").style.display = "none";
+}
+</script>
+
+
+****************************************************
+
+/* Overlay background with blur effect */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease-in-out;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Modal box */
+.modal-box {
+  background: white;
+  padding: 2rem;
+  border-radius: 15px;
+  max-width: 500px;
+  width: 90%;
+  transform: translateY(50px) scale(0.95);
+  opacity: 0;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-overlay.active .modal-box {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* Close icon */
+.modal-close {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.5rem;
+  font-size: 1.5rem;
+  color: #999;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+/* Button styling */
+.modal-box .submit {
+  background-color: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 0.8rem 1.2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.modal-box .submit:hover {
+  background-color: #2563eb;
+  transform: translateY(-2px);
+}
+
+.modal-box .submit:active {
+  transform: scale(0.98);
+}
+
+
