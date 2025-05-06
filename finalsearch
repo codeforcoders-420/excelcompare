@@ -1,0 +1,449 @@
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const searchButton = document.getElementById("searchButton");
+    const searchInput = document.getElementById("searchInput");
+    const resultsTable = document.getElementById("resultsTable");
+    const resultsBody = document.getElementById("resultsBody");
+    const message = document.getElementById("message");
+
+    // Event Listener for Search Button
+    searchButton.addEventListener("click", function () {
+      const folderName = searchInput.value.trim();
+      if (!folderName) {
+        message.textContent = "Please enter a TFS # to begin search.";
+        resultsTable.style.display = "none";
+        return;
+      }
+
+      // Show modal to collect Year, LOB, FeeSchedule
+      const modal = document.getElementById("folderModal");
+      const tfsInput = document.getElementById("modalTfs");
+      tfsInput.value = folderName;
+      modal.style.display = "block";
+    });
+
+    // Handle modal submission
+    document.getElementById("folderModalSubmit").addEventListener("click", function () {
+      const year = document.getElementById("modalYear").value;
+      const lob = document.getElementById("modalLob").value;
+      const fs = document.getElementById("modalFeeSchedule").value;
+      const tfs = document.getElementById("modalTfs").value;
+
+      if (!year || !lob || !fs || !tfs) {
+        alert("Please select all fields.");
+        return;
+      }
+
+      const encodedFs = encodeURIComponent(fs);
+
+      fetch(`/checkFolderExistence?year=${year}&lob=${lob}&feeSchedule=${encodedFs}&folderName=${tfs}`)
+        .then((response) => response.json())
+        .then((data) => {
+          const row = document.createElement("tr");
+
+          const tfsCell = document.createElement("td");
+          tfsCell.innerHTML = `<a href="/openRGStory?storyNumber=${tfs}">${tfs}</a>`;
+          row.appendChild(tfsCell);
+
+          const actionCell = document.createElement("td");
+
+          if (data.exists) {
+            actionCell.innerHTML = "<button class='add-button' disabled>Exists</button>";
+          } else {
+            const addButton = document.createElement("button");
+            addButton.className = "add-button";
+            addButton.textContent = "Add";
+            addButton.addEventListener("click", function () {
+              fetch(`/createFolderPath?year=${year}&lob=${lob}&feeSchedule=${encodedFs}&folderName=${tfs}`, {
+                method: "POST"
+              })
+              .then((res) => res.text())
+              .then(() => {
+                alert("Folder created successfully!");
+                addButton.disabled = true;
+                addButton.textContent = "Added";
+              })
+              .catch((error) => {
+                console.error(error);
+                alert("Failed to create folder.");
+              });
+            });
+            actionCell.appendChild(addButton);
+          }
+
+          row.appendChild(actionCell);
+          resultsBody.innerHTML = "";
+          resultsBody.appendChild(row);
+          resultsTable.style.display = "table";
+          document.getElementById("folderModal").style.display = "none";
+        })
+        .catch((error) => {
+          console.error(error);
+          message.textContent = "Error occurred during folder check.";
+          resultsTable.style.display = "none";
+        });
+    });
+  });
+</script>
+
+<!-- Modal for Folder Info -->
+<div id="folderModal" class="modal" style="display:none">
+  <form class="form">
+    <p class="title">TFS Folder Info</p>
+    <label>
+      <select class="input" id="modalYear">
+        <option value="">Select Year</option>
+        <option>2024</option>
+        <option>2025</option>
+        <option>2026</option>
+      </select>
+      <span>Year</span>
+    </label>
+    <label>
+      <select class="input" id="modalLob">
+        <option value="">Select LOB</option>
+        <option>MA</option>
+        <option>GA</option>
+        <option>OH</option>
+        <option>IN</option>
+        <option>KY</option>
+        <option>CA</option>
+      </select>
+      <span>LOB</span>
+    </label>
+    <label>
+      <select class="input" id="modalFeeSchedule">
+        <option value="">Select Fee Schedule</option>
+        <!-- Loaded dynamically after LOB -->
+      </select>
+      <span>Fee Schedule</span>
+    </label>
+    <input type="hidden" id="modalTfs">
+    <button type="button" class="submit" id="folderModalSubmit">Check</button>
+  </form>
+</div>
+*****************************************
+
+<!-- HTML: Modal for folder search input -->
+<div id="tfsModal" class="modal">
+  <form class="form" id="tfsForm">
+    <p class="title">TFS Folder Details</p>
+    <p class="message">Please provide details to check folder.</p>
+
+    <label>
+      <select class="input" id="yearDropdown" required>
+        <option value="">Select Year</option>
+        <option value="2024">2024</option>
+        <option value="2025">2025</option>
+        <option value="2026">2026</option>
+      </select>
+      <span>Year</span>
+    </label>
+
+    <label>
+      <select class="input" id="lobDropdown" required>
+        <option value="">Select LOB</option>
+        <option value="MA">MA</option>
+        <option value="GA">GA</option>
+        <option value="OH">OH</option>
+        <option value="IN">IN</option>
+        <option value="KY">KY</option>
+        <option value="CA">CA</option>
+      </select>
+      <span>LOB</span>
+    </label>
+
+    <label>
+      <select class="input" id="fsDropdown" required>
+        <option value="">Select Fee Schedule</option>
+        <!-- Options populated via JS -->
+      </select>
+      <span>Fee Schedule</span>
+    </label>
+
+    <button type="submit" class="submit">Check Folder</button>
+  </form>
+</div>
+
+<style>
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+  max-width: 400px;
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 15px;
+  position: relative;
+  animation: fadeInScale 0.4s ease-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.title {
+  font-size: 26px;
+  color: #2a4eff;
+  font-weight: bold;
+  margin-bottom: 0;
+}
+
+.message {
+  font-size: 14px;
+  color: #555;
+}
+
+label {
+  position: relative;
+}
+
+.input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 14px;
+  background: transparent;
+}
+
+label span {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  font-size: 12px;
+  color: #888;
+  background-color: white;
+  padding: 0 5px;
+  transform-origin: left top;
+  transition: all 0.2s ease;
+}
+
+.input:focus + span,
+.input:not(:placeholder-shown) + span {
+  top: -10px;
+  left: 10px;
+  font-size: 10px;
+  color: #2a4eff;
+}
+
+.submit {
+  padding: 10px 15px;
+  background-color: #2a4eff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.submit:hover {
+  background-color: #183ec0;
+}
+</style>
+
+
+*****************************************************************
+
+// JavaScript Logic for Enhanced Modal Folder Check
+
+let tfsNumber = "";
+
+// Show modal on search button click
+function openFolderCheckModal() {
+    tfsNumber = document.getElementById("searchInput").value.trim();
+    if (!tfsNumber) {
+        alert("Please enter a TFS #");
+        return;
+    }
+    document.getElementById("folder-check-modal").style.display = "flex";
+}
+
+// Close modal
+function closeFolderCheckModal() {
+    document.getElementById("folder-check-modal").style.display = "none";
+}
+
+// Populate Fee Schedule dynamically based on LOB
+function onLobChange() {
+    const lob = document.getElementById("lob-select").value;
+    const feeDropdown = document.getElementById("feeschedule-select");
+    feeDropdown.innerHTML = '<option value="">Loading...</option>';
+
+    fetch(`/fetchFeeSchedules?lob=${lob}`)
+        .then(res => res.json())
+        .then(data => {
+            feeDropdown.innerHTML = '<option value="">Select Fee Schedule</option>';
+            data.forEach(fs => {
+                const option = document.createElement("option");
+                option.value = fs;
+                option.textContent = fs;
+                feeDropdown.appendChild(option);
+            });
+        })
+        .catch(err => {
+            feeDropdown.innerHTML = '<option value="">Error loading options</option>';
+            console.error(err);
+        });
+}
+
+// Trigger Folder Check
+function performFolderCheck() {
+    const year = document.getElementById("year-select").value;
+    const lob = document.getElementById("lob-select").value;
+    const fs = document.getElementById("feeschedule-select").value;
+
+    if (!year || !lob || !fs) {
+        alert("Please select all fields");
+        return;
+    }
+
+    const payload = {
+        year,
+        lob,
+        feeSchedule: fs,
+        tfs: tfsNumber
+    };
+
+    fetch("/checkFolderPath", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    })
+        .then(res => res.json())
+        .then(data => {
+            const resultsBody = document.getElementById("resultsBody");
+            const resultsTable = document.getElementById("resultsTable");
+            resultsBody.innerHTML = "";
+            resultsTable.style.display = "table";
+
+            const row = document.createElement("tr");
+            const tfsCell = document.createElement("td");
+            tfsCell.innerHTML = `<a href="/openRGStory?storyNumber=${tfsNumber}">${tfsNumber}</a>`;
+            row.appendChild(tfsCell);
+
+            const actionCell = document.createElement("td");
+            if (data.exists) {
+                actionCell.innerHTML = "<button class='add-button' disabled>Exists</button>";
+            } else {
+                const addBtn = document.createElement("button");
+                addBtn.textContent = "Add";
+                addBtn.className = "add-button";
+                addBtn.onclick = () => {
+                    fetch("/createFolder", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                        .then(resp => resp.text())
+                        .then(() => {
+                            alert("Folder created successfully!");
+                            addBtn.disabled = true;
+                            addBtn.textContent = "Added";
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            alert("Failed to create folder");
+                        });
+                };
+                actionCell.appendChild(addBtn);
+            }
+
+            row.appendChild(actionCell);
+            resultsBody.appendChild(row);
+            closeFolderCheckModal();
+        })
+        .catch(err => {
+            console.error("Folder check failed", err);
+            alert("Error checking folder");
+        });
+}
+
+******************************************************************************
+
+package com.yourcompany.portal.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+
+@RestController
+public class FolderController {
+
+    private static final String BASE_DIRECTORY = "C:/users/TFS/";
+
+    // Check if folder exists at constructed path
+    @PostMapping("/checkFolderPath")
+    public ResponseEntity<Map<String, Object>> checkFolderPath(@RequestBody Map<String, Object> request) {
+        String tfsNumber = (String) request.get("tfsNumber");
+        String year = (String) request.get("year");
+        String lob = (String) request.get("lob");
+        String fs = (String) request.get("fs");
+
+        String path = BASE_DIRECTORY + year + "/" + lob + "/" + fs + "/" + tfsNumber;
+        File folder = new File(path);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("exists", folder.exists());
+        return ResponseEntity.ok(response);
+    }
+
+    // Create folder path from modal data
+    @PostMapping("/createFolderFromForm")
+    public ResponseEntity<Map<String, String>> createFolder(@RequestBody Map<String, Object> request) {
+        String tfsNumber = (String) request.get("tfsNumber");
+        String year = (String) request.get("year");
+        String lob = (String) request.get("lob");
+        String fs = (String) request.get("fs");
+
+        String fullPath = BASE_DIRECTORY + year + "/" + lob + "/" + fs + "/" + tfsNumber;
+        File folder = new File(fullPath);
+
+        Map<String, String> response = new HashMap<>();
+
+        if (!folder.exists()) {
+            boolean created = folder.mkdirs();
+            if (created) {
+                response.put("status", "created");
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("status", "failed");
+                return ResponseEntity.status(500).body(response);
+            }
+        } else {
+            response.put("status", "already exists");
+            return ResponseEntity.ok(response);
+        }
+    }
+}
+
