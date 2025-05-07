@@ -1,0 +1,92 @@
+let currentTfs = "";
+
+document.addEventListener("DOMContentLoaded", function () {
+    const searchButton = document.getElementById("searchButton");
+    const searchInput = document.getElementById("searchInput");
+    const resultsTable = document.getElementById("resultsTable");
+    const resultsBody = document.getElementById("resultsBody");
+    const message = document.getElementById("message");
+
+    const modal = document.getElementById("tfsModal");
+    const checkTFSBtn = document.getElementById("checkTFSBtn");
+
+    // Handle Search click
+    searchButton.addEventListener("click", function () {
+        const folderName = searchInput.value.trim();
+        if (!folderName) {
+            message.textContent = "Please enter a TFS # to begin search.";
+            resultsTable.style.display = "none";
+            return;
+        }
+
+        currentTfs = folderName;
+        modal.style.display = "block"; // show modal
+    });
+
+    // Handle Check button in Modal
+    checkTFSBtn.addEventListener("click", function () {
+        const year = document.getElementById("yearSelect").value;
+        const lob = document.getElementById("lobSelect").value;
+        const fs = document.getElementById("fsSelect").value;
+
+        fetch(`/checkTFSFolder?year=${year}&lob=${lob}&fs=${fs}&tfs=${currentTfs}`)
+            .then(res => res.json())
+            .then((data) => {
+                modal.style.display = "none"; // hide modal
+                resultsTable.style.display = "table";
+                resultsBody.innerHTML = "";
+
+                const row = document.createElement("tr");
+
+                const tfsCell = document.createElement("td");
+                tfsCell.innerHTML = `<a href="/openRGStory?storyNumber=${currentTfs}">${currentTfs}</a>`;
+                row.appendChild(tfsCell);
+
+                const actionCell = document.createElement("td");
+                const button = document.createElement("button");
+                button.className = "add-button";
+
+                if (data.exists) {
+                    button.textContent = "Exists";
+                    button.disabled = true;
+                } else {
+                    button.textContent = "Add";
+                    button.addEventListener("click", function () {
+                        fetch("/createTFSFolder", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ year, lob, fs, tfs: currentTfs })
+                        })
+                            .then(res => res.text())
+                            .then(() => {
+                                alert("Folder created successfully!");
+                                button.textContent = "Added";
+                                button.disabled = true;
+                            })
+                            .catch(err => alert("Failed to create folder: " + err.message));
+                    });
+                }
+
+                actionCell.appendChild(button);
+                row.appendChild(actionCell);
+                resultsBody.appendChild(row);
+            });
+    });
+
+    // Load FS on LOB change
+    document.getElementById("lobSelect").addEventListener("change", function () {
+        const lob = this.value;
+        fetch(`/fetchfeeschedules?lob=${lob}`)
+            .then(res => res.json())
+            .then(data => {
+                const fsSelect = document.getElementById("fsSelect");
+                fsSelect.innerHTML = "";
+                data.forEach(fs => {
+                    const opt = document.createElement("option");
+                    opt.value = fs;
+                    opt.textContent = fs;
+                    fsSelect.appendChild(opt);
+                });
+            });
+    });
+});
