@@ -1,0 +1,39 @@
+@PostMapping("/checkFolderHierarchyOnly")
+public ResponseEntity<Map<String, Object>> checkFolderOnly(@RequestBody FolderHierarchyRequest request) {
+    String year = request.getYear();
+    String lob = request.getLob();
+    String feeSchedule = request.getFeeSchedule();
+    String tfsFolderName = request.getFolderName();
+
+    File tfsFolder = new File("C:/users/TFS/" + year + "/" + lob + "/" + feeSchedule + "/" + tfsFolderName);
+    boolean exists = tfsFolder.exists();
+
+    return ResponseEntity.ok(Map.of("exists", exists));
+}
+
+
+@PostMapping("/createFolderHierarchy")
+public ResponseEntity<Map<String, Object>> createFolder(@RequestBody FolderHierarchyRequest request) {
+    String year = request.getYear();
+    String lob = request.getLob();
+    String feeSchedule = request.getFeeSchedule();
+    String tfsFolderName = request.getFolderName();
+
+    File yearFolder = new File(BASE_DIR, year);
+    File lobFolder = new File(yearFolder, lob);
+    File fsFolder = new File(lobFolder, feeSchedule);
+    File tfsFolder = new File(fsFolder, tfsFolderName);
+
+    try {
+        if (!yearFolder.exists()) yearFolder.mkdir();
+        if (!lobFolder.exists()) lobFolder.mkdir();
+        if (!fsFolder.exists()) fsFolder.mkdir();
+        if (!tfsFolder.exists()) tfsFolder.mkdir();
+
+        return ResponseEntity.ok(Map.of("created", true));
+    } catch (Exception e) {
+        e.printStackTrace();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to create folder hierarchy"));
+    }
+}
