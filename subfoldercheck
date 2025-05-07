@@ -1,0 +1,146 @@
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchButton = document.getElementById("searchButton");
+    const searchInput = document.getElementById("searchInput");
+    const resultsTable = document.getElementById("resultsTable");
+    const resultsBody = document.getElementById("resultsBody");
+    const message = document.getElementById("message");
+
+    const yearDropdown = document.getElementById("yearDropdown");
+    const lobDropdown = document.getElementById("lobDropdown");
+    const fsDropdown = document.getElementById("fsDropdown");
+
+    searchButton.addEventListener("click", function () {
+        const folderName = searchInput.value.trim();
+        const year = yearDropdown.value;
+        const lob = lobDropdown.value;
+        const fs = fsDropdown.value;
+
+        if (!folderName || !year || !lob || !fs) {
+            message.textContent = "Please fill in all fields before searching.";
+            resultsTable.style.display = "none";
+            return;
+        }
+
+        message.textContent = "";
+        resultsBody.innerHTML = "";
+
+        const payload = {
+            folderName: folderName,
+            year: year,
+            lob: lob,
+            feeSchedule: fs
+        };
+
+        fetch("/checkOrCreateFolderHierarchy", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (!response.ok) throw new Error("Error checking folder hierarchy.");
+            return response.json();
+        })
+        .then(data => {
+            resultsTable.style.display = "table";
+            const row = document.createElement("tr");
+
+            const tfsCell = document.createElement("td");
+            tfsCell.innerHTML = `<a href="/openRGStory?storyNumber=${folderName}">${folderName}</a>`;
+            row.appendChild(tfsCell);
+
+            const actionCell = document.createElement("td");
+            if (data.exists) {
+                actionCell.innerHTML = "<button class='add-button' disabled>Exists</button>";
+            } else {
+                const addButton = document.createElement("button");
+                addButton.className = "add-button";
+                addButton.textContent = "Added";
+                addButton.disabled = true;
+                actionCell.appendChild(addButton);
+            }
+
+            row.appendChild(actionCell);
+            resultsBody.appendChild(row);
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            message.textContent = "An error occurred while processing.";
+            resultsTable.style.display = "none";
+        });
+    });
+});
+</script>
+*******************************************************
+
+public class FolderHierarchyRequest {
+    private String folderName;
+    private String year;
+    private String lob;
+    private String feeSchedule;
+
+    // Getters and Setters
+    public String getFolderName() { return folderName; }
+    public void setFolderName(String folderName) { this.folderName = folderName; }
+
+    public String getYear() { return year; }
+    public void setYear(String year) { this.year = year; }
+
+    public String getLob() { return lob; }
+    public void setLob(String lob) { this.lob = lob; }
+
+    public String getFeeSchedule() { return feeSchedule; }
+    public void setFeeSchedule(String feeSchedule) { this.feeSchedule = feeSchedule; }
+}
+
+*****************************************************************
+
+@RestController
+public class FolderController {
+
+    private static final String BASE_DIR = "C:/users/TFS";
+
+    @PostMapping("/checkOrCreateFolderHierarchy")
+    public ResponseEntity<Map<String, Object>> checkOrCreateFolderHierarchy(@RequestBody FolderHierarchyRequest request) {
+        String year = request.getYear();
+        String lob = request.getLob();
+        String feeSchedule = request.getFeeSchedule();
+        String tfsFolderName = request.getFolderName();
+
+        // Build path step by step
+        File yearFolder = new File(BASE_DIR, year);
+        File lobFolder = new File(yearFolder, lob);
+        File fsFolder = new File(lobFolder, feeSchedule);
+        File tfsFolder = new File(fsFolder, tfsFolderName);
+
+        boolean tfsExists = tfsFolder.exists();
+
+        try {
+            if (!yearFolder.exists()) {
+                yearFolder.mkdir();
+            }
+
+            if (!lobFolder.exists()) {
+                lobFolder.mkdir();
+            }
+
+            if (!fsFolder.exists()) {
+                fsFolder.mkdir();
+            }
+
+            if (!tfsExists) {
+                tfsFolder.mkdir();  // Create the TFS# folder
+                tfsExists = true;
+            }
+
+            return ResponseEntity.ok(Map.of("exists", tfsExists));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error while creating folders."));
+        }
+    }
+}
