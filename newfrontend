@@ -1,0 +1,95 @@
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchButton = document.getElementById("searchButton");
+    const searchInput = document.getElementById("searchInput");
+    const resultsTable = document.getElementById("resultsTable");
+    const resultsBody = document.getElementById("resultsBody");
+    const message = document.getElementById("message");
+
+    const yearDropdown = document.getElementById("yearDropdown");
+    const lobDropdown = document.getElementById("lobDropdown");
+    const fsDropdown = document.getElementById("fsDropdown");
+
+    searchButton.addEventListener("click", function () {
+        const folderName = searchInput.value.trim();
+        const year = yearDropdown.value;
+        const lob = lobDropdown.value;
+        const fs = fsDropdown.value;
+
+        if (!folderName || !year || !lob || !fs) {
+            message.textContent = "Please fill in all fields before searching.";
+            resultsTable.style.display = "none";
+            return;
+        }
+
+        message.textContent = "";
+        resultsBody.innerHTML = "";
+
+        const payload = {
+            folderName: folderName,
+            year: year,
+            lob: lob,
+            feeSchedule: fs
+        };
+
+        // Only check — don't create!
+        fetch("/checkFolderStructure", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (!response.ok) throw new Error("Error checking folder structure.");
+            return response.json();
+        })
+        .then(data => {
+            resultsTable.style.display = "table";
+            const row = document.createElement("tr");
+
+            const tfsCell = document.createElement("td");
+            tfsCell.innerHTML = `<a href="/openRGStory?storyNumber=${folderName}">${folderName}</a>`;
+            row.appendChild(tfsCell);
+
+            const actionCell = document.createElement("td");
+
+            if (data.exists) {
+                actionCell.innerHTML = "<button class='add-button' disabled>Exists</button>";
+            } else {
+                const addButton = document.createElement("button");
+                addButton.className = "add-button";
+                addButton.textContent = "Add";
+                addButton.addEventListener("click", function () {
+                    // Now actually create folder when user clicks Add
+                    fetch("/createFolderStructure", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error("Failed to create folder.");
+                        addButton.disabled = true;
+                        addButton.textContent = "Added";
+                    })
+                    .catch(err => {
+                        console.error("Create folder error:", err);
+                        alert("Folder creation failed.");
+                    });
+                });
+                actionCell.appendChild(addButton);
+            }
+
+            row.appendChild(actionCell);
+            resultsBody.appendChild(row);
+        })
+        .catch(error => {
+            console.error("Search error:", error);
+            message.textContent = "An error occurred during folder check.";
+            resultsTable.style.display = "none";
+        });
+    });
+});
+</script>
