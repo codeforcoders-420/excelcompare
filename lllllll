@@ -37,3 +37,56 @@ public ResponseEntity<Map<String, Object>> createFolder(@RequestBody FolderHiera
                 .body(Map.of("error", "Failed to create folder hierarchy"));
     }
 }
+
+*******************************
+
+tfsCell.innerHTML = `
+  <a href="/openRGStory?storyNumber=${encodeURIComponent(folderName)}&year=${encodeURIComponent(year)}&lob=${encodeURIComponent(lob)}&feeSchedule=${encodeURIComponent(fs)}">
+    ${folderName}
+  </a>`;
+************************************
+
+@GetMapping("/openRGStory")
+public String openRGStory(@RequestParam("storyNumber") String storyNumber,
+                          @RequestParam("year") String year,
+                          @RequestParam("lob") String lob,
+                          @RequestParam("feeSchedule") String feeSchedule,
+                          Model model) {
+
+    // Full path based on selected structure
+    File storyFolder = Paths.get(SHARE_FOLDER_PATH_NEW, year, lob, feeSchedule, storyNumber).toFile();
+
+    // If main folder doesn't exist, create it
+    if (!storyFolder.exists()) {
+        boolean created = storyFolder.mkdirs();
+        if (!created) {
+            model.addAttribute("errorMessage", "Failed to create folder for story number: " + storyNumber);
+            return "errorPage";
+        }
+    }
+
+    // Subfolders to be created inside the TFS folder
+    String[] subfolders = {
+        "01. Change File", "02. Change File compare", "03. PreDev Db2DB",
+        "04. PostDev Db2DB", "05. Standard Change File", "06. Peer Review Validate",
+        "07. IR Form", "08. PostPRD DB2DB", "09. Claims Impact Report",
+        "10. Claims Impact Report Compare", "11. Backup Data"
+    };
+
+    // Create subfolders
+    for (String subfolder : subfolders) {
+        File subfolderPath = new File(storyFolder, subfolder);
+        if (!subfolderPath.exists()) {
+            boolean created = subfolderPath.mkdir();
+            if (!created) {
+                model.addAttribute("errorMessage", "Failed to create subfolder: " + subfolder + " for story number: " + storyNumber);
+                return "errorPage";
+            }
+        }
+    }
+
+    // Add story number to model
+    model.addAttribute("storyNumber", storyNumber);
+    return "index";
+}
+
