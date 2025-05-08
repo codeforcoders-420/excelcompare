@@ -1,0 +1,71 @@
+<script>
+// Utility to extract parameters from the URL
+function getQueryParam(key) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(key);
+}
+
+// Extracted values for folder structure
+const storyNumber = getQueryParam("storyNumber");
+const year = getQueryParam("year");
+const lob = getQueryParam("lob");
+const feeSchedule = getQueryParam("feeSchedule");
+</script>
+
+*********************************************
+
+<script>
+document.getElementById("compareButton").addEventListener("click", function () {
+  // Get the selected files
+  const lastReleaseFile = document.getElementById("lastReleaseFile").files[0];
+  const currentReleaseFile = document.getElementById("currentReleaseFile").files[0];
+
+  if (!lastReleaseFile || !currentReleaseFile) {
+    alert("Please select both files.");
+    return;
+  }
+
+  // Build formData with file + folder info
+  const formData = new FormData();
+  formData.append("lastReleaseFile", lastReleaseFile);
+  formData.append("currentReleaseFile", currentReleaseFile);
+  formData.append("storyNumber", storyNumber);
+  formData.append("year", year);
+  formData.append("lob", lob);
+  formData.append("feeSchedule", feeSchedule);
+
+  fetch("/compareRates", {
+    method: "POST",
+    body: formData
+  })
+  .then(response => response.json())
+  .then(result => {
+    console.log("Compare Results:", result);
+    alert("Comparison completed successfully!");
+  })
+  .catch(error => {
+    console.error("Error during comparison:", error);
+    alert("Comparison failed. Check console.");
+  });
+});
+</script>
+
+*******************************************
+
+@PostMapping("/compareRates")
+public ResponseEntity<String> compareRates(
+    @RequestParam("lastReleaseFile") MultipartFile lastReleaseFile,
+    @RequestParam("currentReleaseFile") MultipartFile currentReleaseFile,
+    @RequestParam("storyNumber") String storyNumber,
+    @RequestParam("year") String year,
+    @RequestParam("lob") String lob,
+    @RequestParam("feeSchedule") String feeSchedule) {
+
+    // Now you can compute your path using:
+    // C:/users/TFS/{year}/{lob}/{feeSchedule}/{storyNumber}/...
+
+    String targetPath = "C:/users/TFS/" + year + "/" + lob + "/" + feeSchedule + "/" + storyNumber;
+
+    // Process files as needed...
+    return ResponseEntity.ok("Comparison complete.");
+}
