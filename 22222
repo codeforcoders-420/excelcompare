@@ -1,0 +1,18 @@
+<div class="search-container" style="display: flex; gap: 10px; align-items: center;">
+  <!-- New Brutalist Input Field -->
+  <div class="brutalist-container" style="margin-right: 10px;">
+    <input
+      id="searchInput"
+      placeholder="TYPE HERE"
+      class="brutalist-input smooth-type"
+      type="text"
+    />
+    <label class="brutalist-label">TFS# SEARCH</label>
+  </div>
+
+  <!-- Search Button -->
+  <button id="searchButton" class="search-button">Search</button>
+</div>
+
+**********************************************
+
