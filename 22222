@@ -16,3 +16,22 @@
 
 **********************************************
 
+.search-button {
+  padding: 6px 10px;                 /* Smaller padding */
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 13px;                   /* Slightly smaller font */
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  height: 40px;                      /* Set a fixed height to align with input */
+}
+
+
+.brutalist-input {
+  height: 40px;
+  /* ...other existing styles... */
+}
+
+
