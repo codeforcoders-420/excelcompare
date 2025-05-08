@@ -1,0 +1,76 @@
+<div class="sccontainer">
+  <div class="search-container">
+    <div class="custom-input-wrapper">
+      <input type="text" id="searchInput" class="custom-input" placeholder="TYPE HERE" />
+      <svg viewBox="0 0 24 24" class="search__icon">
+        <g>
+          <path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"></path>
+        </g>
+      </svg>
+    </div>
+    <button id="searchButton" class="search-button">Search</button>
+  </div>
+</div>
+
+***************************************************
+
+/* Search container alignment */
+.sccontainer {
+  display: flex;
+  justify-content: center;
+  margin: 20px auto;
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Custom styled input with search icon */
+.custom-input-wrapper {
+  position: relative;
+  width: 280px;
+  border-radius: 50px;
+  background: linear-gradient(135deg, rgb(218, 232, 247) 0%, rgb(214, 229, 247) 100%);
+  padding: 5px 5px 5px 15px;
+  display: flex;
+  align-items: center;
+  box-shadow: rgba(79, 156, 232, 0.7) 3px 3px 5px, rgba(79, 156, 232, 0.7) 5px 5px 20px;
+}
+
+.custom-input {
+  flex-grow: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 18px;
+  color: #333;
+  padding: 8px 0;
+}
+
+.search__icon {
+  width: 32px;
+  height: 32px;
+  padding-left: 8px;
+}
+
+.search__icon path {
+  fill: #4a90e2;
+}
+
+/* Search button style */
+.search-button {
+  padding: 8px 14px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.search-button:hover {
+  background-color: #45a049;
+}
