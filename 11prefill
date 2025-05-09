@@ -1,0 +1,335 @@
+@GetMapping("/getLatestStandardFile")
+public ResponseEntity<?> getLatestStandardFile(
+        @RequestParam String storyNumber,
+        @RequestParam String year,
+        @RequestParam String lob,
+        @RequestParam String feeSchedule) {
+
+    String folderPath = String.format("C:/users/TFS/%s/%s/%s/%s/05.Standard File Format",
+                                      year, lob, feeSchedule, storyNumber);
+
+    File folder = new File(folderPath);
+    if (!folder.exists() || !folder.isDirectory()) {
+        return ResponseEntity.ok().body(Map.of("file", null));
+    }
+
+    File[] files = folder.listFiles();
+    if (files == null || files.length == 0) {
+        return ResponseEntity.ok().body(Map.of("file", null));
+    }
+
+    File latestFile = Arrays.stream(files)
+            .filter(File::isFile)
+            .max(Comparator.comparingLong(File::lastModified))
+            .orElse(null);
+
+    if (latestFile == null) {
+        return ResponseEntity.ok().body(Map.of("file", null));
+    }
+
+    return ResponseEntity.ok().body(Map.of(
+        "fileName", latestFile.getName(),
+        "filePath", latestFile.getAbsolutePath()
+    ));
+}
+
+
+****************************************************
+
+window.addEventListener("DOMContentLoaded", function () {
+    const params = new URLSearchParams(window.location.search);
+    const storyNumber = params.get("storyNumber");
+    const year = params.get("year");
+    const lob = params.get("lob");
+    const feeSchedule = params.get("feeSchedule");
+
+    fetch(`/getLatestStandardFile?storyNumber=${storyNumber}&year=${year}&lob=${lob}&feeSchedule=${feeSchedule}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.filePath) {
+                // Preload the file name in the UI
+                document.getElementById("fileInfo").textContent = "Loaded: " + data.fileName;
+
+                // You can trigger file processing from here
+                // OR simulate selecting it in an <input type="file"> control
+            } else {
+                // Show file picker if nothing found
+                document.getElementById("filePickerSection").style.display = "block";
+            }
+        })
+        .catch(error => {
+            console.error("Error loading default file:", error);
+            document.getElementById("filePickerSection").style.display = "block";
+        });
+});
+
+**********************************************************
+
+<div id="fileInfo" style="font-weight: bold;"></div>
+
+<div id="filePickerSection" style="display: none;">
+    <label for="manualFileInput">Choose file manually:</label>
+    <input type="file" id="manualFileInput">
+</div>
+
+**********************************************************
+
+<div id="fileInfo" style="font-weight: bold; margin-bottom: 10px;"></div>
+
+<!-- Actual file input fallback -->
+<div id="filePickerSection" style="display: none;">
+  <label for="manualFileInput">Choose file manually:</label>
+  <input type="file" id="manualFileInput">
+</div>
+
+<!-- Hidden input to hold backend file path -->
+<input type="hidden" id="backendFilePath" />
+
+***********************************************************
+
+window.addEventListener("DOMContentLoaded", function () {
+    const params = new URLSearchParams(window.location.search);
+    const storyNumber = params.get("storyNumber");
+    const year = params.get("year");
+    const lob = params.get("lob");
+    const feeSchedule = params.get("feeSchedule");
+
+    fetch(`/getLatestStandardFile?storyNumber=${storyNumber}&year=${year}&lob=${lob}&feeSchedule=${feeSchedule}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.filePath) {
+                // Show the loaded file name
+                document.getElementById("fileInfo").textContent = "Auto-selected file: " + data.fileName;
+                document.getElementById("backendFilePath").value = data.filePath;
+            } else {
+                // Fallback to manual picker
+                document.getElementById("filePickerSection").style.display = "block";
+            }
+        })
+        .catch(error => {
+            console.error("Error loading default file:", error);
+            document.getElementById("filePickerSection").style.display = "block";
+        });
+});
+
+
+******************************************************
+document.getElementById("compareBtn").addEventListener("click", function () {
+    const backendPath = document.getElementById("backendFilePath").value;
+    const manualFileInput = document.getElementById("manualFileInput");
+
+    if (backendPath) {
+        fetch("/processFileByPath", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filePath: backendPath })
+        })
+        .then(res => res.text())
+        .then(msg => alert("Processed: " + msg));
+    } else if (manualFileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append("file", manualFileInput.files[0]);
+
+        fetch("/processUploadedFile", {
+            method: "POST",
+            body: formData
+        }).then(res => res.text())
+          .then(msg => alert("Processed manually: " + msg));
+    } else {
+        alert("No file selected!");
+    }
+});
+
+***********************************************
+
+@PostMapping("/processFileByPath")
+public ResponseEntity<String> processFile(@RequestBody Map<String, String> body) {
+    String filePath = body.get("filePath");
+    File file = new File(filePath);
+    if (!file.exists()) return ResponseEntity.badRequest().body("File not found");
+
+    // Your logic to read and process
+    return ResponseEntity.ok("Successfully processed: " + file.getName());
+}
+
+@PostMapping("/processUploadedFile")
+public ResponseEntity<String> processUploadedFile(@RequestParam("file") MultipartFile file) {
+    // handle manual upload
+    return ResponseEntity.ok("Manual file processed: " + file.getOriginalFilename());
+}
+
+*****************************************************
+
+@GetMapping("/getLatestCompareFile")
+public ResponseEntity<Map<String, String>> getLatestCompareFile(
+        @RequestParam String year,
+        @RequestParam String lob,
+        @RequestParam String feeSchedule,
+        @RequestParam String tfs) {
+
+    String basePath = String.format("C:/users/TFS/%s/%s/%s/%s/05.Standard File Format", year, lob, feeSchedule, tfs);
+    File folder = new File(basePath);
+
+    if (!folder.exists() || !folder.isDirectory()) {
+        return ResponseEntity.ok(Map.of("filePath", "", "message", "Directory not found."));
+    }
+
+    File[] files = folder.listFiles((dir, name) -> name.endsWith(".xlsx") || name.endsWith(".xls"));
+    if (files == null || files.length == 0) {
+        return ResponseEntity.ok(Map.of("filePath", "", "message", "No Excel files found."));
+    }
+
+    File latestFile = Arrays.stream(files)
+            .max(Comparator.comparingLong(File::lastModified))
+            .orElse(null);
+
+    if (latestFile != null) {
+        return ResponseEntity.ok(Map.of("filePath", latestFile.getAbsolutePath(), "message", "Latest file found."));
+    } else {
+        return ResponseEntity.ok(Map.of("filePath", "", "message", "No file found."));
+    }
+}
+
+**********************************************
+
+window.addEventListener("DOMContentLoaded", () => {
+    const params = new URLSearchParams(window.location.search);
+    const year = params.get("year");
+    const lob = params.get("lob");
+    const feeSchedule = params.get("feeSchedule");
+    const tfs = params.get("storyNumber");
+
+    if (year && lob && feeSchedule && tfs) {
+        fetch(`/getLatestCompareFile?year=${year}&lob=${lob}&feeSchedule=${feeSchedule}&tfs=${tfs}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.filePath) {
+                    // Assign file path to file input if needed
+                    const fileInput = document.getElementById("compare-file");
+                    const filePathLabel = document.getElementById("compare-file-label");
+
+                    if (filePathLabel) {
+                        filePathLabel.innerText = `Auto-selected: ${data.filePath}`;
+                    }
+
+                    // Use a hidden input to store file path (because file input can't be programmatically populated)
+                    document.getElementById("compare-file-hidden-path").value = data.filePath;
+                }
+            });
+    }
+});
+
+**********************************
+
+<!-- File input (manual fallback only) -->
+<label id="compare-file-label" for="compare-file">Select file manually if not auto-detected:</label>
+<input type="file" id="compare-file" name="compareFile" />
+
+<!-- Hidden field to store auto-detected file path -->
+<input type="hidden" id="compare-file-hidden-path" name="autoFilePath" />
+***********************************
+
+<!-- Hidden Input to hold file path if user accepts suggested file -->
+<input type="hidden" id="prefilledChangeFilePath" name="prefilledChangeFilePath" />
+
+<!-- File input remains disabled initially -->
+<input type="file" id="changeFileInput" name="changeFile" disabled />
+
+<!-- Modal -->
+<div id="fileModal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeFileModal()">&times;</span>
+    <h3>Auto-detected Latest File</h3>
+    <p id="fileInfoText">Loading...</p>
+    <button onclick="useThisFile()">Use This File</button>
+    <button onclick="enableManualBrowse()">Browse Manually</button>
+  </div>
+</div>
+
+
+*****************************************
+
+.modal {
+  display: none; position: fixed; z-index: 1000; padding-top: 100px;
+  left: 0; top: 0; width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.5);
+}
+.modal-content {
+  background-color: #fefefe; margin: auto; padding: 20px;
+  border: 1px solid #888; width: 400px; border-radius: 10px;
+}
+.close-btn {
+  color: #aaa; float: right; font-size: 28px; font-weight: bold;
+}
+.close-btn:hover { color: black; cursor: pointer; }
+
+***********************************************
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const year = params.get("year");
+  const lob = params.get("lob");
+  const fs = params.get("fs");
+  const tfs = params.get("storyNumber");
+
+  fetch(`/getLatestFile?year=${year}&lob=${lob}&fs=${fs}&tfs=${tfs}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.filePath) {
+        document.getElementById("fileInfoText").innerText = `File: ${data.fileName}\nSize: ${data.size} KB`;
+        document.getElementById("fileModal").style.display = "block";
+        document.getElementById("prefilledChangeFilePath").value = data.filePath;
+      } else {
+        document.getElementById("changeFileInput").disabled = false;
+      }
+    });
+});
+
+function useThisFile() {
+  document.getElementById("fileModal").style.display = "none";
+  // proceed with prefilled file (backend will use the hidden field)
+}
+
+function enableManualBrowse() {
+  document.getElementById("fileModal").style.display = "none";
+  document.getElementById("changeFileInput").disabled = false;
+  document.getElementById("prefilledChangeFilePath").value = "";
+}
+
+function closeFileModal() {
+  document.getElementById("fileModal").style.display = "none";
+}
+
+
+*********************************************************
+
+@GetMapping("/getLatestFile")
+public ResponseEntity<?> getLatestFile(
+    @RequestParam String year,
+    @RequestParam String lob,
+    @RequestParam String fs,
+    @RequestParam String tfs) {
+
+    Path folderPath = Paths.get("C:/users/TFS", year, lob, fs, tfs, "05.Standard File Format");
+    try (Stream<Path> files = Files.list(folderPath)) {
+        Optional<Path> latest = files
+            .filter(Files::isRegularFile)
+            .max(Comparator.comparingLong(f -> f.toFile().lastModified()));
+
+        if (latest.isPresent()) {
+            Path file = latest.get();
+            return ResponseEntity.ok(Map.of(
+                "filePath", file.toString(),
+                "fileName", file.getFileName().toString(),
+                "size", Files.size(file) / 1024
+            ));
+        } else {
+            return ResponseEntity.ok(Map.of("filePath", null));
+        }
+    } catch (IOException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to locate files.");
+    }
+}
+
+
+********************************************************88
