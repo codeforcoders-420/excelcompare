@@ -1,0 +1,53 @@
+param(
+    [string]$filePath,
+    [string]$cellAddress,
+    [string]$cellValue,
+    [string]$macroName  # Optional
+)
+
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$excel.DisplayAlerts = $false
+
+# Open workbook
+$workbook = $excel.Workbooks.Open($filePath)
+$sheet = $workbook.Sheets.Item(1)
+
+# Write value to the given cell (e.g., "B2")
+$range = $sheet.Range($cellAddress)
+$range.Value2 = $cellValue
+
+# Trigger RefreshAll
+$workbook.RefreshAll()
+
+# Optional: Run Macro (make sure macro is embedded in the workbook)
+if ($macroName -ne "") {
+    Start-Sleep -Seconds 5  # Let refresh settle
+    $excel.Run($macroName)
+}
+
+# Save and close
+Start-Sleep -Seconds 2  # Wait for refresh/macro to complete
+$workbook.Save()
+$workbook.Close($false)
+$excel.Quit()
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+
+
+**************************************************************************************
+
+String filePath = "C:\\Users\\TFS\\2025\\MA\\XYZ\\05.Standard File Format\\Report.xlsm";
+String cellAddress = "B2";
+String cellValue = "12345";
+String macroName = "ThisWorkbook.RunMe";  // Leave empty if no macro
+
+String command = String.format(
+    "powershell.exe -ExecutionPolicy Bypass -File \"C:\\Scripts\\RunExcelAutomation.ps1\" -filePath \"%s\" -cellAddress \"%s\" -cellValue \"%s\" -macroName \"%s\"",
+    filePath, cellAddress, cellValue, macroName
+);
+
+Process p = Runtime.getRuntime().exec(command);
+int exitCode = p.waitFor();
+System.out.println("PowerShell exited with code: " + exitCode);
+
+
