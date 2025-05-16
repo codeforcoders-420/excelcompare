@@ -1,30 +1,50 @@
-String filePath = "C:\\Users\\TFS\\2025\\MA\\XYZ\\05.Standard File Format\\Report.xlsm";
-String cellAddress = "B2";
-String cellValue = "12345";
-String macroName = "ThisWorkbook.RunMe";  // Leave empty if no macro
+param (
+    [string]$sourcePath,
+    [string]$targetPath,
+    [string]$userName,
+    [string]$feeScheduleId
+)
+
+# Initialize Excel COM
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$excel.DisplayAlerts = $false
+
+# Open the workbook
+$workbook = $excel.Workbooks.Open($sourcePath)
+$sheet = $workbook.Sheets.Item(1)
+
+# Set values
+$sheet.Range("B2").Value2 = $userName
+$sheet.Range("B3").Value2 = Get-Date -Format "MM/dd/yyyy"
+$sheet.Range("B4").Value2 = $feeScheduleId
+
+# Trigger Refresh All
+$workbook.RefreshAll()
+Start-Sleep -Seconds 5  # Optional: wait for refresh to complete
+
+# Save to new path
+$workbook.SaveAs($targetPath)
+
+# Close and clean up
+$workbook.Close($false)
+$excel.Quit()
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+
+
+**********************************************************************
+
+String sourcePath = "C:\\Templates\\ReportTemplate.xlsm";
+String targetPath = "C:\\Users\\Reports\\FinalReport.xlsm";
+String userName = System.getProperty("user.name");
+String feeScheduleId = "GACLAB";
 
 String command = String.format(
-    "powershell.exe -ExecutionPolicy Bypass -File \"C:\\Scripts\\RunExcelAutomation.ps1\" -filePath \"%s\" -cellAddress \"%s\" -cellValue \"%s\" -macroName \"%s\"",
-    filePath, cellAddress, cellValue, macroName
+    "powershell.exe -ExecutionPolicy Bypass -File \"C:\\Scripts\\UpdateExcelAndRefresh.ps1\" " +
+    "-sourcePath \"%s\" -targetPath \"%s\" -userName \"%s\" -feeScheduleId \"%s\"",
+    sourcePath, targetPath, userName, feeScheduleId
 );
 
-Process p = Runtime.getRuntime().exec(command);
-int exitCode = p.waitFor();
-System.out.println("PowerShell exited with code: " + exitCode);
-
-
-**************************************************
-
-String filePath = "C:\\Users\\TFS\\2025\\MA\\XYZ\\05.Standard File Format\\Report.xlsm";
-String cellAddress = "B2";
-String cellValue = "12345";
-String macroName = "ThisWorkbook.RunMe";  // Leave empty if no macro
-
-String command = String.format(
-    "powershell.exe -ExecutionPolicy Bypass -File \"C:\\Scripts\\RunExcelAutomation.ps1\" -filePath \"%s\" -cellAddress \"%s\" -cellValue \"%s\" -macroName \"%s\"",
-    filePath, cellAddress, cellValue, macroName
-);
-
-Process p = Runtime.getRuntime().exec(command);
-int exitCode = p.waitFor();
+Process process = Runtime.getRuntime().exec(command);
+int exitCode = process.waitFor();
 System.out.println("PowerShell exited with code: " + exitCode);
