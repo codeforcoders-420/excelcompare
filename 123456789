@@ -47,3 +47,57 @@ Process process = Runtime.getRuntime().exec(command);
 int exitCode = process.waitFor();
 
 **********************************************
+
+import java.io.*;
+import java.util.*;
+
+public class RunExcelAutomation {
+
+    public static void main(String[] args) {
+        try {
+            // Parameters to pass
+            String inputPath = "C:\\Users\\rajas\\Desktop\\Template\\MacroTemplate.xlsm";
+            String outputPath = "C:\\Users\\rajas\\Desktop\\Output\\UpdatedExcel.xlsx";
+            String userName = System.getProperty("user.name");
+            String feeScheduleId = "GACLAB";
+
+            // PowerShell script path
+            String scriptPath = "C:\\Users\\rajas\\Desktop\\Scripts\\runExcelAutomation.ps1";
+
+            // Build the PowerShell command with arguments
+            List<String> command = new ArrayList<>();
+            command.add("powershell.exe");
+            command.add("-ExecutionPolicy");
+            command.add("Bypass");
+            command.add("-File");
+            command.add(scriptPath);
+            command.add(inputPath);
+            command.add(outputPath);
+            command.add(userName);
+            command.add(feeScheduleId);
+
+            // Execute the command
+            ProcessBuilder builder = new ProcessBuilder(command);
+            builder.redirectErrorStream(true);
+            Process process = builder.start();
+
+            // Read the output from the PowerShell script
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println("[PowerShell]: " + line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode == 0) {
+                System.out.println("✅ PowerShell script executed successfully.");
+            } else {
+                System.err.println("❌ PowerShell script failed with exit code: " + exitCode);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
