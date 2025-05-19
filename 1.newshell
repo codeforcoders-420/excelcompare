@@ -1,0 +1,39 @@
+ProcessBuilder builder = new ProcessBuilder("cmd.exe", "/c", "schtasks /run /tn \"RunPeerReviewMacro\"");
+
+Map<String, String> env = builder.environment();
+env.put("USER_NAME", System.getProperty("user.name"));
+env.put("CURRENT_DATE", LocalDate.now().toString());
+env.put("FEE_SCHEDULE", "FS123");
+env.put("INPUT_PATH", "C:\\Path\\To\\Input\\MacroTemplate.xlsm");
+env.put("OUTPUT_PATH", "C:\\Path\\To\\Output\\FinalOutput.xlsx");
+
+Process process = builder.start();
+int exitCode = process.waitFor();
+System.out.println("Task triggered, exit code: " + exitCode);
+
+***********************************************************************
+
+$UserName     = $env:USER_NAME
+$CurrentDate  = $env:CURRENT_DATE
+$FeeSchedule  = $env:FEE_SCHEDULE
+$InputPath    = $env:INPUT_PATH
+$OutputPath   = $env:OUTPUT_PATH
+
+# Open Excel and load workbook
+$excel = New-Object -ComObject Excel.Application
+$workbook = $excel.Workbooks.Open($InputPath)
+$sheet = $workbook.Sheets.Item(1)
+
+# Write values to specific cells
+$sheet.Range("B2").Value() = $UserName
+$sheet.Range("B3").Value() = $CurrentDate
+$sheet.Range("B4").Value() = $FeeSchedule
+
+# Optional: Refresh data connections or run macro
+$excel.DisplayAlerts = $false
+$excel.Run("RefreshAll")
+
+# Save to output path and close
+$workbook.SaveAs($OutputPath)
+$workbook.Close($false)
+$excel.Quit()
