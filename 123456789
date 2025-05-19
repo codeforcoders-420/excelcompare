@@ -1,0 +1,47 @@
+param (
+    [string]$inputPath,
+    [string]$outputPath,
+    [string]$userName,
+    [string]$feeScheduleId
+)
+
+# Initialize Excel COM
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$excel.DisplayAlerts = $false
+
+# Open workbook
+$workbook = $excel.Workbooks.Open($inputPath)
+
+# Update values
+$sheet = $workbook.Sheets.Item(1)
+$sheet.Range("B2").Value() = $userName
+$sheet.Range("B3").Value() = Get-Date -Format "MM/dd/yyyy"
+$sheet.Range("B4").Value() = $feeScheduleId
+
+# Refresh data connections
+$workbook.RefreshAll()
+Start-Sleep -Seconds 10  # wait to allow refresh to finish
+
+# Save the file to output location
+$workbook.SaveAs($outputPath)
+
+# Clean up
+$workbook.Close($false)
+$excel.Quit()
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($sheet) | Out-Null
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($workbook) | Out-Null
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+[GC]::Collect()
+[GC]::WaitForPendingFinalizers()
+
+************************************************************
+
+String command = "powershell.exe -ExecutionPolicy Bypass -File \"C:\\scripts\\runExcel.ps1\""
+    + " -inputPath \"C:\\template\\report.xlsm\""
+    + " -outputPath \"C:\\output\\final-report.xlsm\""
+    + " -userName \"" + System.getProperty("user.name") + "\""
+    + " -feeScheduleId \"GACLAB\"";
+
+Process process = Runtime.getRuntime().exec(command);
+int exitCode = process.waitFor();
