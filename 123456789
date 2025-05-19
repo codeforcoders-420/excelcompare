@@ -45,3 +45,5 @@ String command = "powershell.exe -ExecutionPolicy Bypass -File \"C:\\scripts\\ru
 
 Process process = Runtime.getRuntime().exec(command);
 int exitCode = process.waitFor();
+
+**********************************************
