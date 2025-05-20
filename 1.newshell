@@ -130,4 +130,37 @@ finally {
     [GC]::WaitForPendingFinalizers()
 }
 
+****************************************
+******************************************
+
+
+String inputText = String.join("\n",
+    "USER_NAME=" + System.getProperty("user.name"),
+    "CURRENT_DATE=" + LocalDate.now().toString(),
+    "FEE_SCHEDULE=FS123",
+    "INPUT_PATH=C:\\Path\\To\\Input\\MacroTemplate.xlsm",
+    "OUTPUT_PATH=C:\\Path\\To\\Output\\FinalOutput.xlsx"
+);
+
+// Save to a known file path
+Path inputFilePath = Paths.get("C:/Scripts/input_env.txt");
+Files.write(inputFilePath, inputText.getBytes());
+
+***************************************
+
+# Load key=value pairs from temp file into $env
+$envFile = "C:\Scripts\input_env.txt"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match "^(.*?)=(.*)$") {
+            $envName = $matches[1].Trim()
+            $envValue = $matches[2].Trim()
+            [System.Environment]::SetEnvironmentVariable($envName, $envValue, "Process")
+        }
+    }
+}
+
+ProcessBuilder builder = new ProcessBuilder("cmd.exe", "/c", "schtasks /run /tn \"RunPeerReviewMacro\"");
+builder.start();
+
 
