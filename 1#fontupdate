@@ -1,0 +1,42 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class ExcelStyleHelper {
+
+    private static final Map<String, CellStyle> styleCache = new HashMap<>();
+
+    public static CellStyle getFontStyle(Workbook workbook, String colorKey) {
+        if (styleCache.containsKey(colorKey)) {
+            return styleCache.get(colorKey);
+        }
+
+        Font font = workbook.createFont();
+        font.setBold(true);
+
+        switch (colorKey.toUpperCase()) {
+            case "RED" -> font.setColor(IndexedColors.RED.getIndex());
+            case "GREEN" -> font.setColor(IndexedColors.GREEN.getIndex());
+            case "BLUE" -> font.setColor(IndexedColors.BLUE.getIndex());
+            default -> font.setColor(IndexedColors.BLACK.getIndex());
+        }
+
+        CellStyle style = workbook.createCellStyle();
+        style.setFont(font);
+        styleCache.put(colorKey, style);
+
+        return style;
+    }
+}
+
+
+
+**********************
+
+Cell cell = row.createCell(0);
+cell.setCellValue("Validation Failed");
+
+CellStyle redBoldStyle = ExcelStyleHelper.getFontStyle(workbook, "RED");
+cell.setCellStyle(redBoldStyle);
