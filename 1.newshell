@@ -163,4 +163,39 @@ if (Test-Path $envFile) {
 ProcessBuilder builder = new ProcessBuilder("cmd.exe", "/c", "schtasks /run /tn \"RunPeerReviewMacro\"");
 builder.start();
 
+***************************************
+
+
+try {
+    "[$(Get-Date)] Creating Excel COM object..." | Out-File $logFile -Append
+    $excel = New-Object -ComObject Excel.Application
+    $excel.Visible = $false
+    $excel.DisplayAlerts = $false
+
+    "[$(Get-Date)] Opening workbook..." | Out-File $logFile -Append
+    $workbook = $excel.Workbooks.Open($InputPath)
+
+    "[$(Get-Date)] Accessing worksheet..." | Out-File $logFile -Append
+    $sheet = $workbook.Sheets.Item(1)
+
+    "[$(Get-Date)] Updating cell values..." | Out-File $logFile -Append
+    $sheet.Range("A2").Value2 = $UserName
+    $sheet.Range("B2").Value2 = $CurrentDate
+    $sheet.Range("C2").Value2 = $FeeSchedule
+
+    "[$(Get-Date)] Refreshing all..." | Out-File $logFile -Append
+    $workbook.RefreshAll()
+    Start-Sleep -Seconds 5
+
+    "[$(Get-Date)] Saving workbook..." | Out-File $logFile -Append
+    $workbook.SaveAs($OutputPath)
+
+    $workbook.Close($true)
+    $excel.Quit()
+
+    "[$(Get-Date)] Excel update completed successfully." | Out-File $logFile -Append
+}
+catch {
+    "[$(Get-Date)] ERROR: $_" | Out-File $logFile -Append
+}
 
