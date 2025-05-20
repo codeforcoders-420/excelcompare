@@ -1,162 +1,131 @@
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.io.*;
-import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
 
-public class ExcelHybridUpdater {
+public class ExcelQueryExporter {
 
-    public static class QueryJob {
-        public String sheetName;
-        public String query;
-        public String environment; // SIT or PROD
+    static class QueryJob {
+        String sheetName;
+        String sql;
+        String environment;
 
-        public QueryJob(String sheetName, String query, String environment) {
+        QueryJob(String sheetName, String sql, String environment) {
             this.sheetName = sheetName;
-            this.query = query;
-            this.environment = environment;
+            this.sql = sql;
+            this.environment = environment.toUpperCase();
         }
     }
 
-    public static List<QueryJob> readQueryJobs(String queryFilePath, String sheetName) throws IOException {
+    public static List<QueryJob> readQueryJobsFromExcel(String queryExcelPath, String sheetName) throws IOException {
         List<QueryJob> jobs = new ArrayList<>();
-
-        try (FileInputStream fis = new FileInputStream(queryFilePath);
+        try (FileInputStream fis = new FileInputStream(queryExcelPath);
              Workbook workbook = new XSSFWorkbook(fis)) {
 
             Sheet sheet = workbook.getSheet(sheetName);
-            if (sheet == null) throw new IllegalArgumentException("Sheet '" + sheetName + "' not found");
+            if (sheet == null) throw new IllegalArgumentException("Sheet '" + sheetName + "' not found.");
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
                 String sheetNameStr = row.getCell(0).getStringCellValue().trim();
-                String queryStr = row.getCell(1).getStringCellValue().trim();
-                String envStr = row.getCell(2).getStringCellValue().trim().toUpperCase();
+                String query = row.getCell(1).getStringCellValue().trim();
+                String env = row.getCell(2).getStringCellValue().trim();
 
-                if (!sheetNameStr.isEmpty() && !queryStr.isEmpty() && !envStr.isEmpty()) {
-                    jobs.add(new QueryJob(sheetNameStr, queryStr, envStr));
+                if (!sheetNameStr.isEmpty() && !query.isEmpty() && !env.isEmpty()) {
+                    jobs.add(new QueryJob(sheetNameStr, query, env));
                 }
             }
         }
-
         return jobs;
     }
 
-    public static Map<String, File> executeQueriesToTempFiles(Connection sitConn, Connection prodConn, List<QueryJob> jobs) throws Exception {
-        Map<String, File> tempFiles = new LinkedHashMap<>();
+    public static void executeAndWriteQueries(
+            List<QueryJob> jobs,
+            Connection sitConn,
+            Connection prodConn,
+            String templatePath,
+            String outputPath
+    ) throws Exception {
 
-        for (QueryJob job : jobs) {
-            Connection conn = job.environment.equals("PROD") ? prodConn : sitConn;
-
-            File tempFile = Files.createTempFile(job.sheetName, ".xlsx").toFile();
-            tempFiles.put(job.sheetName, tempFile);
-
-            try (
-                Statement stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                ResultSet rs = stmt.executeQuery(job.query);
-                SXSSFWorkbook tempWorkbook = new SXSSFWorkbook(100);
-                FileOutputStream tempOut = new FileOutputStream(tempFile)
-            ) {
-                Sheet tempSheet = tempWorkbook.createSheet(job.sheetName);
-                ResultSetMetaData meta = rs.getMetaData();
-                int colCount = meta.getColumnCount();
-
-                Row header = tempSheet.createRow(0);
-                for (int i = 1; i <= colCount; i++) {
-                    header.createCell(i - 1).setCellValue(meta.getColumnName(i));
-                }
-
-                int rowIdx = 1;
-                while (rs.next()) {
-                    Row row = tempSheet.createRow(rowIdx++);
-                    for (int i = 1; i <= colCount; i++) {
-                        Object value = rs.getObject(i);
-                        row.createCell(i - 1).setCellValue(value != null ? value.toString() : "");
-                    }
-                }
-
-                tempWorkbook.write(tempOut);
-                tempWorkbook.dispose();
-            }
-        }
-
-        return tempFiles;
-    }
-
-    public static void copyTempSheetsToTemplate(Map<String, File> tempFiles, String templatePath) throws Exception {
         try (
             FileInputStream fis = new FileInputStream(templatePath);
-            Workbook templateWb = new XSSFWorkbook(fis)
+            Workbook workbook = new XSSFWorkbook(fis)
         ) {
-            for (Map.Entry<String, File> entry : tempFiles.entrySet()) {
-                String sheetName = entry.getKey();
-                File tempFile = entry.getValue();
+            for (QueryJob job : jobs) {
+                System.out.println("Running query for sheet: " + job.sheetName + " [" + job.environment + "]");
 
-                try (FileInputStream tempFis = new FileInputStream(tempFile);
-                     Workbook tempWb = new XSSFWorkbook(tempFis)) {
+                Connection conn = job.environment.equals("PROD") ? prodConn : sitConn;
 
-                    Sheet tempSheet = tempWb.getSheetAt(0);
-                    Sheet templateSheet = templateWb.getSheet(sheetName);
-                    if (templateSheet == null) {
-                        templateSheet = templateWb.createSheet(sheetName);
-                    } else {
-                        for (int i = templateSheet.getLastRowNum(); i >= 0; i--) {
-                            Row row = templateSheet.getRow(i);
-                            if (row != null) templateSheet.removeRow(row);
+                try (
+                    Statement stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+                    ResultSet rs = stmt.executeQuery(job.sql)
+                ) {
+                    Sheet sheet = workbook.getSheet(job.sheetName());
+                    if (sheet == null) sheet = workbook.createSheet(job.sheetName);
+
+                    // Preserve formatting: Clear all data rows but keep header
+                    int headerRowIndex = 0;
+                    int lastRow = sheet.getLastRowNum();
+                    for (int i = lastRow; i > headerRowIndex; i--) {
+                        Row row = sheet.getRow(i);
+                        if (row != null) sheet.removeRow(row);
+                    }
+
+                    // Write headers (replace row 0)
+                    ResultSetMetaData meta = rs.getMetaData();
+                    int columnCount = meta.getColumnCount();
+                    Row headerRow = sheet.getRow(headerRowIndex);
+                    if (headerRow == null) headerRow = sheet.createRow(headerRowIndex);
+                    for (int i = 1; i <= columnCount; i++) {
+                        Cell cell = headerRow.getCell(i - 1);
+                        if (cell == null) cell = headerRow.createCell(i - 1);
+                        cell.setCellValue(meta.getColumnName(i));
+                    }
+
+                    // Write data rows starting from row 1
+                    int rowIdx = 1;
+                    while (rs.next()) {
+                        Row row = sheet.createRow(rowIdx++);
+                        for (int i = 1; i <= columnCount; i++) {
+                            Object value = rs.getObject(i);
+                            row.createCell(i - 1).setCellValue(value != null ? value.toString() : "");
                         }
                     }
 
-                    for (int i = 0; i <= tempSheet.getLastRowNum(); i++) {
-                        Row srcRow = tempSheet.getRow(i);
-                        Row destRow = templateSheet.createRow(i);
-                        if (srcRow != null) {
-                            for (int j = 0; j < srcRow.getLastCellNum(); j++) {
-                                Cell srcCell = srcRow.getCell(j);
-                                Cell destCell = destRow.createCell(j);
-                                if (srcCell != null) {
-                                    destCell.setCellValue(srcCell.toString());
-                                }
-                            }
-                        }
-                    }
+                    System.out.println("→ Wrote " + (rowIdx - 1) + " rows to sheet: " + job.sheetName);
                 }
             }
 
-            try (FileOutputStream fos = new FileOutputStream(templatePath)) {
-                templateWb.write(fos);
+            // Save updated workbook to new output path
+            try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                workbook.write(fos);
             }
-        } finally {
-            for (File f : tempFiles.values()) {
-                if (f.exists()) f.delete();
-            }
+
+            System.out.println("✅ Workbook saved to: " + outputPath);
         }
     }
 
-    public static void runUpdate(String sitJdbc, String prodJdbc, String queryFilePath, String templatePath) throws Exception {
-        List<QueryJob> jobs = readQueryJobs(queryFilePath, "Queries");
+    public static void main(String[] args) throws Exception {
+        String queryExcelPath = "C:/MacroFiles/QueryList.xlsx";
+        String querySheet = "Queries";
+
+        String templatePath = "C:/MacroFiles/PowerBI_Template.xlsx";
+        String outputPath = "C:/Reports/PowerBI_Report_Updated.xlsx";
+
+        String sitJdbc = "jdbc:sqlserver://SIT_SERVER;databaseName=DB1;integratedSecurity=true;";
+        String prodJdbc = "jdbc:sqlserver://PROD_SERVER;databaseName=DB1;integratedSecurity=true;";
+
+        List<QueryJob> jobs = readQueryJobsFromExcel(queryExcelPath, querySheet);
 
         try (
             Connection sitConn = DriverManager.getConnection(sitJdbc);
             Connection prodConn = DriverManager.getConnection(prodJdbc)
         ) {
-            Map<String, File> tempFiles = executeQueriesToTempFiles(sitConn, prodConn, jobs);
-            copyTempSheetsToTemplate(tempFiles, templatePath);
+            executeAndWriteQueries(jobs, sitConn, prodConn, templatePath, outputPath);
         }
-
-        System.out.println("Workbook updated successfully with all queries.");
-    }
-
-    public static void main(String[] args) throws Exception {
-        String sitJdbc = "jdbc:sqlserver://SIT_SERVER;databaseName=DB1;integratedSecurity=true;";
-        String prodJdbc = "jdbc:sqlserver://PROD_SERVER;databaseName=DB1;integratedSecurity=true;";
-        String queryFilePath = "C:/MacroFiles/QueryList.xlsx";
-        String templatePath = "C:/MacroFiles/PowerBI_Template.xlsx";
-
-        runUpdate(sitJdbc, prodJdbc, queryFilePath, templatePath);
     }
 }
