@@ -9,82 +9,108 @@ import java.util.*;
 
 public class ExcelHybridUpdater {
 
-    public static void writeLargeQueriesToTemplate(
-            String jdbcUrl,
-            Map<String, String> querySheetMap,
-            String templatePath
-    ) throws Exception {
+    public static class QueryJob {
+        public String sheetName;
+        public String query;
+        public String environment; // SIT or PROD
 
-        // Step 1: Create temporary SXSSF workbook to stream large data
-        Map<String, File> tempSheetFiles = new LinkedHashMap<>();
+        public QueryJob(String sheetName, String query, String environment) {
+            this.sheetName = sheetName;
+            this.query = query;
+            this.environment = environment;
+        }
+    }
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl)) {
+    public static List<QueryJob> readQueryJobs(String queryFilePath, String sheetName) throws IOException {
+        List<QueryJob> jobs = new ArrayList<>();
 
-            for (Map.Entry<String, String> entry : querySheetMap.entrySet()) {
-                String sheetName = entry.getKey();
-                String query = entry.getValue();
+        try (FileInputStream fis = new FileInputStream(queryFilePath);
+             Workbook workbook = new XSSFWorkbook(fis)) {
 
-                File tempFile = Files.createTempFile(sheetName, ".xlsx").toFile();
-                tempSheetFiles.put(sheetName, tempFile);
+            Sheet sheet = workbook.getSheet(sheetName);
+            if (sheet == null) throw new IllegalArgumentException("Sheet '" + sheetName + "' not found");
 
-                try (
-                    Statement stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                    ResultSet rs = stmt.executeQuery(query);
-                    SXSSFWorkbook tempWorkbook = new SXSSFWorkbook(100); // keep 100 rows in memory
-                    FileOutputStream tempOut = new FileOutputStream(tempFile)
-                ) {
-                    Sheet tempSheet = tempWorkbook.createSheet(sheetName);
-                    ResultSetMetaData meta = rs.getMetaData();
-                    int colCount = meta.getColumnCount();
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
 
-                    // Header row
-                    Row header = tempSheet.createRow(0);
-                    for (int i = 1; i <= colCount; i++) {
-                        header.createCell(i - 1).setCellValue(meta.getColumnName(i));
-                    }
+                String sheetNameStr = row.getCell(0).getStringCellValue().trim();
+                String queryStr = row.getCell(1).getStringCellValue().trim();
+                String envStr = row.getCell(2).getStringCellValue().trim().toUpperCase();
 
-                    // Data rows
-                    int rowIdx = 1;
-                    while (rs.next()) {
-                        Row row = tempSheet.createRow(rowIdx++);
-                        for (int i = 1; i <= colCount; i++) {
-                            Object value = rs.getObject(i);
-                            row.createCell(i - 1).setCellValue(value != null ? value.toString() : "");
-                        }
-                    }
-
-                    tempWorkbook.write(tempOut);
-                    tempWorkbook.dispose(); // Clean up temporary files
+                if (!sheetNameStr.isEmpty() && !queryStr.isEmpty() && !envStr.isEmpty()) {
+                    jobs.add(new QueryJob(sheetNameStr, queryStr, envStr));
                 }
             }
         }
 
-        // Step 2: Load the template workbook (MacroPath)
+        return jobs;
+    }
+
+    public static Map<String, File> executeQueriesToTempFiles(Connection sitConn, Connection prodConn, List<QueryJob> jobs) throws Exception {
+        Map<String, File> tempFiles = new LinkedHashMap<>();
+
+        for (QueryJob job : jobs) {
+            Connection conn = job.environment.equals("PROD") ? prodConn : sitConn;
+
+            File tempFile = Files.createTempFile(job.sheetName, ".xlsx").toFile();
+            tempFiles.put(job.sheetName, tempFile);
+
+            try (
+                Statement stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+                ResultSet rs = stmt.executeQuery(job.query);
+                SXSSFWorkbook tempWorkbook = new SXSSFWorkbook(100);
+                FileOutputStream tempOut = new FileOutputStream(tempFile)
+            ) {
+                Sheet tempSheet = tempWorkbook.createSheet(job.sheetName);
+                ResultSetMetaData meta = rs.getMetaData();
+                int colCount = meta.getColumnCount();
+
+                Row header = tempSheet.createRow(0);
+                for (int i = 1; i <= colCount; i++) {
+                    header.createCell(i - 1).setCellValue(meta.getColumnName(i));
+                }
+
+                int rowIdx = 1;
+                while (rs.next()) {
+                    Row row = tempSheet.createRow(rowIdx++);
+                    for (int i = 1; i <= colCount; i++) {
+                        Object value = rs.getObject(i);
+                        row.createCell(i - 1).setCellValue(value != null ? value.toString() : "");
+                    }
+                }
+
+                tempWorkbook.write(tempOut);
+                tempWorkbook.dispose();
+            }
+        }
+
+        return tempFiles;
+    }
+
+    public static void copyTempSheetsToTemplate(Map<String, File> tempFiles, String templatePath) throws Exception {
         try (
             FileInputStream fis = new FileInputStream(templatePath);
-            Workbook templateWorkbook = new XSSFWorkbook(fis)
+            Workbook templateWb = new XSSFWorkbook(fis)
         ) {
-            for (Map.Entry<String, File> entry : tempSheetFiles.entrySet()) {
+            for (Map.Entry<String, File> entry : tempFiles.entrySet()) {
                 String sheetName = entry.getKey();
                 File tempFile = entry.getValue();
 
-                // Load the temp workbook for this sheet
                 try (FileInputStream tempFis = new FileInputStream(tempFile);
                      Workbook tempWb = new XSSFWorkbook(tempFis)) {
 
                     Sheet tempSheet = tempWb.getSheetAt(0);
-                    Sheet templateSheet = templateWorkbook.getSheet(sheetName);
+                    Sheet templateSheet = templateWb.getSheet(sheetName);
                     if (templateSheet == null) {
-                        templateSheet = templateWorkbook.createSheet(sheetName);
+                        templateSheet = templateWb.createSheet(sheetName);
                     } else {
-                        // Clear existing rows
                         for (int i = templateSheet.getLastRowNum(); i >= 0; i--) {
                             Row row = templateSheet.getRow(i);
                             if (row != null) templateSheet.removeRow(row);
                         }
                     }
 
-                    // Copy rows from tempSheet to templateSheet
                     for (int i = 0; i <= tempSheet.getLastRowNum(); i++) {
                         Row srcRow = tempSheet.getRow(i);
                         Row destRow = templateSheet.createRow(i);
@@ -101,33 +127,36 @@ public class ExcelHybridUpdater {
                 }
             }
 
-            // Step 3: Save final workbook back to the same template path
             try (FileOutputStream fos = new FileOutputStream(templatePath)) {
-                templateWorkbook.write(fos);
+                templateWb.write(fos);
             }
         } finally {
-            // Clean up all temp files
-            for (File tempFile : tempSheetFiles.values()) {
-                if (tempFile.exists()) tempFile.delete();
+            for (File f : tempFiles.values()) {
+                if (f.exists()) f.delete();
             }
         }
+    }
 
-        System.out.println("Workbook updated successfully with large datasets.");
+    public static void runUpdate(String sitJdbc, String prodJdbc, String queryFilePath, String templatePath) throws Exception {
+        List<QueryJob> jobs = readQueryJobs(queryFilePath, "Queries");
+
+        try (
+            Connection sitConn = DriverManager.getConnection(sitJdbc);
+            Connection prodConn = DriverManager.getConnection(prodJdbc)
+        ) {
+            Map<String, File> tempFiles = executeQueriesToTempFiles(sitConn, prodConn, jobs);
+            copyTempSheetsToTemplate(tempFiles, templatePath);
+        }
+
+        System.out.println("Workbook updated successfully with all queries.");
     }
 
     public static void main(String[] args) throws Exception {
-        String jdbcUrl = "jdbc:sqlserver://YOUR_SERVER;databaseName=YOUR_DB;integratedSecurity=true;";
-        String templatePath = "C:/MacroFiles/PowerBI_Template.xlsx"; // .xlsx file without macros
+        String sitJdbc = "jdbc:sqlserver://SIT_SERVER;databaseName=DB1;integratedSecurity=true;";
+        String prodJdbc = "jdbc:sqlserver://PROD_SERVER;databaseName=DB1;integratedSecurity=true;";
+        String queryFilePath = "C:/MacroFiles/QueryList.xlsx";
+        String templatePath = "C:/MacroFiles/PowerBI_Template.xlsx";
 
-        Map<String, String> queries = new LinkedHashMap<>();
-        queries.put("Sheet1", "SELECT * FROM Table1");
-        queries.put("Sheet2", "SELECT * FROM Table2");
-        queries.put("Sheet3", "SELECT * FROM Table3");
-        queries.put("Sheet4", "SELECT * FROM Table4");
-        queries.put("Sheet5", "SELECT * FROM Table5");
-        queries.put("Sheet6", "SELECT * FROM Table6");
-        queries.put("Sheet7", "SELECT * FROM Table7");
-
-        writeLargeQueriesToTemplate(jdbcUrl, queries, templatePath);
+        runUpdate(sitJdbc, prodJdbc, queryFilePath, templatePath);
     }
 }
