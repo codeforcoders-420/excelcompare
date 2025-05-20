@@ -1,0 +1,122 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.*;
+import java.sql.*;
+import java.util.*;
+
+public class ExcelDirectWriter {
+
+    public static class QueryJob {
+        public String sheetName;
+        public String query;
+        public String environment; // SIT or PROD
+
+        public QueryJob(String sheetName, String query, String environment) {
+            this.sheetName = sheetName;
+            this.query = query;
+            this.environment = environment;
+        }
+    }
+
+    public static List<QueryJob> readQueryJobs(String queryFilePath, String sheetName) throws IOException {
+        List<QueryJob> jobs = new ArrayList<>();
+
+        try (FileInputStream fis = new FileInputStream(queryFilePath);
+             Workbook workbook = new XSSFWorkbook(fis)) {
+
+            Sheet sheet = workbook.getSheet(sheetName);
+            if (sheet == null) throw new IllegalArgumentException("Sheet '" + sheetName + "' not found");
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+
+                String sheetNameStr = row.getCell(0).getStringCellValue().trim();
+                String queryStr = row.getCell(1).getStringCellValue().trim();
+                String envStr = row.getCell(2).getStringCellValue().trim().toUpperCase();
+
+                if (!sheetNameStr.isEmpty() && !queryStr.isEmpty() && !envStr.isEmpty()) {
+                    jobs.add(new QueryJob(sheetNameStr, queryStr, envStr));
+                }
+            }
+        }
+
+        return jobs;
+    }
+
+    public static void writeQueriesToTemplate(List<QueryJob> jobs, Connection sitConn, Connection prodConn, String templatePath) throws Exception {
+        try (
+            FileInputStream fis = new FileInputStream(templatePath);
+            Workbook workbook = new XSSFWorkbook(fis)
+        ) {
+            for (QueryJob job : jobs) {
+                Connection conn = job.environment.equals("PROD") ? prodConn : sitConn;
+
+                System.out.println("Running query for sheet: " + job.sheetName + " on " + job.environment);
+
+                try (
+                    Statement stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+                    ResultSet rs = stmt.executeQuery(job.query)
+                ) {
+                    Sheet sheet = workbook.getSheet(job.sheetName);
+                    if (sheet == null) {
+                        sheet = workbook.createSheet(job.sheetName);
+                    } else {
+                        // Clear contents but retain formatting by removing rows only
+                        int lastRow = sheet.getLastRowNum();
+                        for (int i = lastRow; i >= 0; i--) {
+                            Row row = sheet.getRow(i);
+                            if (row != null) sheet.removeRow(row);
+                        }
+                    }
+
+                    ResultSetMetaData meta = rs.getMetaData();
+                    int colCount = meta.getColumnCount();
+
+                    // Header row
+                    Row header = sheet.createRow(0);
+                    for (int i = 1; i <= colCount; i++) {
+                        header.createCell(i - 1).setCellValue(meta.getColumnName(i));
+                    }
+
+                    // Data rows
+                    int rowIdx = 1;
+                    while (rs.next()) {
+                        Row row = sheet.createRow(rowIdx++);
+                        for (int i = 1; i <= colCount; i++) {
+                            Object value = rs.getObject(i);
+                            row.createCell(i - 1).setCellValue(value != null ? value.toString() : "");
+                        }
+                    }
+                }
+            }
+
+            try (FileOutputStream fos = new FileOutputStream(templatePath)) {
+                workbook.write(fos);
+            }
+        }
+    }
+
+    public static void runUpdate(String sitJdbc, String prodJdbc, String queryFilePath, String templatePath) throws Exception {
+        List<QueryJob> jobs = readQueryJobs(queryFilePath, "Queries");
+
+        try (
+            Connection sitConn = DriverManager.getConnection(sitJdbc);
+            Connection prodConn = DriverManager.getConnection(prodJdbc)
+        ) {
+            writeQueriesToTemplate(jobs, sitConn, prodConn, templatePath);
+        }
+
+        System.out.println("Workbook updated successfully with all queries.");
+    }
+
+    public static void main(String[] args) throws Exception {
+        String sitJdbc = "jdbc:sqlserver://SIT_SERVER;databaseName=DB1;integratedSecurity=true;";
+        String prodJdbc = "jdbc:sqlserver://PROD_SERVER;databaseName=DB1;integratedSecurity=true;";
+        String queryFilePath = "C:/MacroFiles/QueryList.xlsx";
+        String templatePath = "C:/MacroFiles/PowerBI_Template.xlsx";
+
+        runUpdate(sitJdbc, prodJdbc, queryFilePath, templatePath);
+    }
+}
