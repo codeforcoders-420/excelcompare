@@ -37,3 +37,45 @@ $excel.Run("RefreshAll")
 $workbook.SaveAs($OutputPath)
 $workbook.Close($false)
 $excel.Quit()
+
+****************************************************************
+
+# Read environment variables
+$UserName = $env:USER_NAME
+$CurrentDate = $env:CURRENT_DATE
+$FeeSchedule = $env:FEE_SCHEDULE
+$InputPath = $env:INPUT_PATH
+$OutputPath = $env:OUTPUT_PATH
+
+# Log for debugging (optional)
+Write-Host "Running macro as $UserName on $CurrentDate for Fee Schedule $FeeSchedule"
+Write-Host "Input File: $InputPath"
+Write-Host "Output File: $OutputPath"
+
+# Launch Excel and run macro
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$excel.DisplayAlerts = $false
+
+# Open the macro-enabled workbook
+$workbook = $excel.Workbooks.Open($InputPath)
+
+# Pass values to Excel macro via named range or use a parameterless macro if self-contained
+# Example: Call macro named RunPeerReview
+$excel.Run("RunPeerReview")
+
+# Save output to specified path
+$workbook.SaveAs($OutputPath)
+
+# Cleanup
+$workbook.Close($false)
+$excel.Quit()
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($workbook) | Out-Null
+[System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+[GC]::Collect()
+[GC]::WaitForPendingFinalizers()
+
+
+
+-ExecutionPolicy Bypass -File "C:\Scripts\RunPeerReviewMacro.ps1"
+
