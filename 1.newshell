@@ -79,3 +79,55 @@ $excel.Quit()
 
 -ExecutionPolicy Bypass -File "C:\Scripts\RunPeerReviewMacro.ps1"
 
+****************************************************************************
+
+$UserName    = $env:USER_NAME
+$CurrentDate = $env:CURRENT_DATE
+$FeeSchedule = $env:FEE_SCHEDULE
+$InputPath   = $env:INPUT_PATH
+$OutputPath  = $env:OUTPUT_PATH
+
+$logFile = "C:\Scripts\MacroLog.txt"
+"[$(Get-Date)] Starting Excel Update..." | Out-File $logFile -Append
+"UserName=$UserName, Date=$CurrentDate, FS=$FeeSchedule" | Out-File $logFile -Append
+"InputPath=$InputPath" | Out-File $logFile -Append
+"OutputPath=$OutputPath" | Out-File $logFile -Append
+
+try {
+    $excel = New-Object -ComObject Excel.Application
+    $excel.Visible = $false
+    $excel.DisplayAlerts = $false
+
+    $workbook = $excel.Workbooks.Open($InputPath)
+    $sheet = $workbook.Sheets.Item(1)  # Update this if you're using a specific sheet
+
+    # Update cells with input values
+    $sheet.Cells.Item(2, 1).Value2 = $UserName     # Example: Cell A2
+    $sheet.Cells.Item(2, 2).Value2 = $CurrentDate  # Example: Cell B2
+    $sheet.Cells.Item(2, 3).Value2 = $FeeSchedule  # Example: Cell C2
+
+    "[$(Get-Date)] Values updated. Refreshing all data..." | Out-File $logFile -Append
+    $workbook.RefreshAll()
+    
+    Start-Sleep -Seconds 5  # Optional: give Excel time to refresh
+
+    "[$(Get-Date)] Saving workbook..." | Out-File $logFile -Append
+    $workbook.SaveAs($OutputPath)
+
+    $workbook.Close($true)
+    $excel.Quit()
+
+    "[$(Get-Date)] Excel update completed successfully." | Out-File $logFile -Append
+}
+catch {
+    "[$(Get-Date)] ERROR: $_" | Out-File $logFile -Append
+}
+finally {
+    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($sheet) | Out-Null
+    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($workbook) | Out-Null
+    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+}
+
+
