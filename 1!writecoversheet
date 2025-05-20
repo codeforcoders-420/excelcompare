@@ -1,0 +1,77 @@
+public static void executeAndWriteQueries(
+        List<QueryJob> jobs,
+        Connection sitConn,
+        Connection prodConn,
+        String templatePath,
+        String outputPath,
+        String userName,
+        String currentDate,
+        String feeSchedule
+) throws Exception {
+
+    try (
+        FileInputStream fis = new FileInputStream(templatePath);
+        Workbook workbook = new XSSFWorkbook(fis)
+    ) {
+        // ✅ Write values only to "CoverSheet"
+        Sheet coverSheet = workbook.getSheet("CoverSheet");
+        if (coverSheet != null) {
+            Row rowB2 = coverSheet.getRow(1); if (rowB2 == null) rowB2 = coverSheet.createRow(1);
+            Row rowB3 = coverSheet.getRow(2); if (rowB3 == null) rowB3 = coverSheet.createRow(2);
+            Row rowB4 = coverSheet.getRow(3); if (rowB4 == null) rowB4 = coverSheet.createRow(3);
+
+            rowB2.createCell(1).setCellValue(userName);     // B2
+            rowB3.createCell(1).setCellValue(currentDate);  // B3
+            rowB4.createCell(1).setCellValue(feeSchedule);  // B4
+        }
+
+        // ✅ Run and write each query result
+        for (QueryJob job : jobs) {
+            System.out.println("Running query for sheet: " + job.sheetName + " [" + job.environment + "]");
+            Connection conn = job.environment.equals("PROD") ? prodConn : sitConn;
+
+            try (
+                Statement stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+                ResultSet rs = stmt.executeQuery(job.sql)
+            ) {
+                Sheet sheet = workbook.getSheet(job.sheetName);
+                if (sheet == null) sheet = workbook.createSheet(job.sheetName);
+
+                // 🧼 Clear data rows (but skip "CoverSheet")
+                if (!job.sheetName.equalsIgnoreCase("CoverSheet")) {
+                    for (int i = sheet.getLastRowNum(); i >= 0; i--) {
+                        Row row = sheet.getRow(i);
+                        if (row != null) sheet.removeRow(row);
+                    }
+                }
+
+                // 🧾 Write headers and data
+                ResultSetMetaData meta = rs.getMetaData();
+                int columnCount = meta.getColumnCount();
+
+                Row headerRow = sheet.createRow(0);
+                for (int i = 1; i <= columnCount; i++) {
+                    headerRow.createCell(i - 1).setCellValue(meta.getColumnName(i));
+                }
+
+                int rowIdx = 1;
+                while (rs.next()) {
+                    Row row = sheet.createRow(rowIdx++);
+                    for (int i = 1; i <= columnCount; i++) {
+                        Object value = rs.getObject(i);
+                        row.createCell(i - 1).setCellValue(value != null ? value.toString() : "");
+                    }
+                }
+
+                System.out.println("→ Wrote " + (rowIdx - 1) + " rows to sheet: " + job.sheetName);
+            }
+        }
+
+        // 💾 Save final workbook
+        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+            workbook.write(fos);
+        }
+
+        System.out.println("✅ Workbook saved to: " + outputPath);
+    }
+}
