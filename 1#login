@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title>Signup</title></head>
+<body>
+<h2>Signup</h2>
+<form method="post" th:action="@{/signup}" th:object="${user}">
+    Username: <input type="text" th:field="*{username}" /><br/>
+    Full Name: <input type="text" th:field="*{fullName}" /><br/>
+    Password: <input type="password" th:field="*{password}" /><br/>
+    <button type="submit">Register</button>
+</form>
+<p th:text="${message}"></p>
+<a th:href="@{/login}">Back to Login</a>
+</body>
+</html>
+
+
+*****************************************
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title>Login</title></head>
+<body>
+<h2>Login</h2>
+<form th:action="@{/login}" method="post">
+    Username: <input type="text" name="username"/><br/>
+    Password: <input type="password" name="password"/><br/>
+    <button type="submit">Login</button>
+</form>
+<a th:href="@{/signup}">Signup</a>
+</body>
+</html>
+
+***********************************
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title>Home</title></head>
+<body>
+<h2>Welcome, <span th:text="${username}">User</span>!</h2>
+<a th:href="@{/logout}">Logout</a>
+</body>
+</html>
+
+***********************************
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title>Pending Approvals</title></head>
+<body>
+<h2>Pending User Approvals</h2>
+<table>
+    <tr><th>Username</th><th>Full Name</th><th>Action</th></tr>
+    <tr th:each="user : ${pendingUsers}">
+        <td th:text="${user.username}"></td>
+        <td th:text="${user.fullName}"></td>
+        <td>
+            <form th:action="@{'/admin/approve/' + ${user.id}}" method="post">
+                <button type="submit">Approve</button>
+            </form>
+        </td>
+    </tr>
+</table>
+<a th:href="@{/home}">Back to Home</a>
+</body>
+</html>
