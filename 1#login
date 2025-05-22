@@ -1,3 +1,287 @@
+package com.example.auth.model;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "users")
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(unique = true)
+    private String username;
+
+    private String password;
+    private String fullName;
+
+    @Enumerated(EnumType.STRING)
+    private Status status; // PENDING, APPROVED
+
+    public enum Status {
+        PENDING,
+        APPROVED
+    }
+
+    // Getters and Setters
+}
+
+**************************************************
+
+
+package com.example.auth.repository;
+
+import com.example.auth.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByUsername(String username);
+}
+
+******************************************************************
+
+package com.example.auth.service;
+
+import com.example.auth.model.User;
+import com.example.auth.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class UserService {
+
+    @Autowired
+    private UserRepository repo;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    public void registerUser(User user) {
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setStatus(User.Status.PENDING);
+        repo.save(user);
+    }
+
+    public Optional<User> getByUsername(String username) {
+        return repo.findByUsername(username);
+    }
+
+    public List<User> getPendingUsers() {
+        return repo.findAll().stream().filter(u -> u.getStatus() == User.Status.PENDING).toList();
+    }
+
+    public void approveUser(Long id) {
+        repo.findById(id).ifPresent(user -> {
+            user.setStatus(User.Status.APPROVED);
+            repo.save(user);
+        });
+    }
+}
+*************************************************
+
+package com.example.auth.controller;
+
+import com.example.auth.model.User;
+import com.example.auth.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+@Controller
+public class AuthController {
+
+    @Autowired
+    private UserService service;
+
+    @GetMapping("/signup")
+    public String signupForm(Model model) {
+        model.addAttribute("user", new User());
+        return "signup";
+    }
+
+    @PostMapping("/signup")
+    public String processSignup(@ModelAttribute User user, Model model) {
+        service.registerUser(user);
+        model.addAttribute("message", "Signup successful! Awaiting admin approval.");
+        return "login";
+    }
+
+    @GetMapping("/login")
+    public String loginPage() {
+        return "login";
+    }
+
+    @GetMapping("/home")
+    public String home(Authentication auth, Model model) {
+        model.addAttribute("username", auth.getName());
+        return "home";
+    }
+
+    @GetMapping("/admin/pending-users")
+    public String pendingUsers(Model model) {
+        model.addAttribute("pendingUsers", service.getPendingUsers());
+        return "admin-approve";
+    }
+
+    @PostMapping("/admin/approve/{id}")
+    public String approveUser(@PathVariable Long id) {
+        service.approveUser(id);
+        return "redirect:/admin/pending-users";
+    }
+}
+
+****************************************************************
+
+package com.example.auth.config;
+
+import com.example.auth.model.User;
+import com.example.auth.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+public class SecurityConfig {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    private static final String ADMIN_USERNAME = "admin";
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return username -> {
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+            if (user.getStatus() != User.Status.APPROVED && !username.equals(ADMIN_USERNAME)) {
+                throw new UsernameNotFoundException("User not approved");
+            }
+
+            boolean isAdmin = username.equals(ADMIN_USERNAME);
+            return User.withUsername(user.getUsername())
+                    .password(user.getPassword())
+                    .roles(isAdmin ? "ADMIN" : "USER")
+                    .build();
+        };
+    }
+
+    @Bean
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider daoAuthProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService());
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/signup", "/login", "/h2-console/**").permitAll()
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+                .anyRequest().authenticated()
+            )
+            .formLogin(form -> form
+                .loginPage("/login")
+                .defaultSuccessUrl("/home", true)
+                .permitAll()
+            )
+            .logout(logout -> logout.permitAll())
+            .csrf(csrf -> csrf.disable()) // H2 Console needs this
+            .headers(headers -> headers.frameOptions().disable()); // H2 Console
+
+        return http.build();
+    }
+}
+
+
+********************************
+
+# H2 Database (in-memory)
+spring.datasource.url=jdbc:h2:mem:testdb
+spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+spring.jpa.hibernate.ddl-auto=update
+
+**********************************
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title>Pending Approvals</title></head>
+<body>
+<h2>Pending User Approvals</h2>
+<table>
+    <tr><th>Username</th><th>Full Name</th><th>Action</th></tr>
+    <tr th:each="user : ${pendingUsers}">
+        <td th:text="${user.username}"></td>
+        <td th:text="${user.fullName}"></td>
+        <td>
+            <form th:action="@{'/admin/approve/' + ${user.id}}" method="post">
+                <button type="submit">Approve</button>
+            </form>
+        </td>
+    </tr>
+</table>
+<a th:href="@{/home}">Back to Home</a>
+</body>
+</html>
+
+
+********************************
+
+package com.example.auth.exception;
+
+public class UserNotApprovedException extends RuntimeException {
+    public UserNotApprovedException(String message) {
+        super(message);
+    }
+}
+
+************************
+
+import com.example.auth.exception.UserNotApprovedException;
+
+// inside userDetailsService()
+User user = userRepository.findByUsername(username)
+    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+if (user.getStatus() != User.Status.APPROVED && !username.equals(ADMIN_USERNAME)) {
+    throw new UserNotApprovedException("User not approved");
+}
+*************************************
+
+
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head><title>Signup</title></head>
