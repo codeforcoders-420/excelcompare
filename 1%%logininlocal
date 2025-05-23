@@ -1,3 +1,16 @@
+@PostMapping("/signup")
+public String processSignup(@ModelAttribute AppUser user, Model model) {
+    userService.registerUser(user);
+    model.addAttribute("message", "Signup successful! Awaiting admin approval.");
+    model.addAttribute("user", new AppUser());  // FIX: ensures login.html can bind again
+    return "login";
+}
+
+
+***********************************
+
+
+
 <form class="flip-card__form" action="/login" method="post">
     <input class="flip-card__input" name="username" placeholder="Username" type="text" required>
     <input class="flip-card__input" name="password" placeholder="Password" type="password" required>
