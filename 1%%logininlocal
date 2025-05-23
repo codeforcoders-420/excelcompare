@@ -1,3 +1,81 @@
+*******************************************************************
+
+package com.test.spring.boot.controller;
+
+import com.test.spring.boot.model.User;
+import com.test.spring.boot.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+@Controller
+public class AuthController {
+
+    @Autowired
+    private UserService userService;
+
+    // For displaying the login/signup page
+    @GetMapping("/login")
+    public String loginPage(Model model) {
+        model.addAttribute("user", new User());
+        return "login"; // login.html (contains both login + signup)
+    }
+
+    // Handles form submission for signup
+    @PostMapping("/signup")
+    public String processSignup(@ModelAttribute User user, Model model) {
+        userService.registerUser(user);
+        model.addAttribute("message", "Signup successful! Awaiting admin approval.");
+        return "login";
+    }
+
+    // After login success
+    @GetMapping("/home")
+    public String home(Authentication auth, Model model) {
+        model.addAttribute("username", auth.getName());
+        return "home"; // Replace with your post-login landing page
+    }
+}
+*******************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <form class="flip-card__form" th:action="@{/signup}" method="post" th:object="${user}">
     <input class="flip-card__input" th:field="*{fullName}" placeholder="Name" type="text"/>
     <input class="flip-card__input" th:field="*{username}" placeholder="Email" type="text"/>
@@ -139,4 +217,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
 }
 
+
+****************************************************************
 
