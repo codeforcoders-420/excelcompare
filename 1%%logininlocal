@@ -1,3 +1,132 @@
+package com.test.spring.boot.config;
+
+import com.test.spring.boot.model.User;
+import com.test.spring.boot.repository.UserRepository;
+import com.test.spring.boot.exception.UserNotApprovedException;
+import com.test.spring.boot.config.CustomAuthFailureHandler;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.*;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+public class SecurityConfig {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private CustomAuthFailureHandler failureHandler;
+
+    private static final String ADMIN_USERNAME = "admin";
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return username -> {
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+            if (user.getStatus() != User.Status.APPROVED && !username.equals(ADMIN_USERNAME)) {
+                throw new UserNotApprovedException("User not approved");
+            }
+
+            boolean isAdmin = username.equals(ADMIN_USERNAME);
+
+            return User.withUsername(user.getUsername())
+                    .password(user.getPassword())
+                    .roles(isAdmin ? "ADMIN" : "USER")
+                    .build();
+        };
+    }
+
+    @Bean
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService());
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/signup", "/login", "/css/**", "/js/**", "/h2-console/**").permitAll()
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+                .anyRequest().authenticated()
+            )
+            .formLogin(form -> form
+                .loginPage("/login")
+                .defaultSuccessUrl("/home", true)
+                .failureHandler(failureHandler)
+                .permitAll()
+            )
+            .logout(logout -> logout.permitAll())
+            .csrf(csrf -> csrf.disable()) // Allow H2 console
+            .headers(headers -> headers.frameOptions().disable()); // Allow H2 console
+
+        return http.build();
+    }
+}
+
+**********************************************************************************************************
+
+package com.test.spring.boot.exception;
+
+public class UserNotApprovedException extends RuntimeException {
+    public UserNotApprovedException(String message) {
+        super(message);
+    }
+}
+
+***************************************
+
+package com.test.spring.boot.config;
+
+import com.test.spring.boot.exception.UserNotApprovedException;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.*;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+@Component
+public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
+
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request,
+                                         HttpServletResponse response,
+                                         AuthenticationException exception)
+            throws IOException, ServletException {
+
+        String redirectUrl = "/login?error";
+
+        if (exception.getCause() instanceof UserNotApprovedException ||
+            exception instanceof UserNotApprovedException) {
+            redirectUrl = "/login?error=pending";
+        }
+
+        response.sendRedirect(redirectUrl);
+    }
+}
+
+****************************************************************
+
+
+
+
+
+
 spring.datasource.url=jdbc:h2:file:./data/testdb
 spring.datasource.driverClassName=org.h2.Driver
 spring.datasource.username=sa
