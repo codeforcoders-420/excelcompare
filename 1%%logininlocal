@@ -20,6 +20,39 @@ public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
 
         String redirectUrl = "/login?error";
 
+        Throwable cause = exception.getCause();
+        if (cause instanceof UserNotApprovedException) {
+            redirectUrl = "/login?error=pending";
+        }
+
+        response.sendRedirect(redirectUrl);
+    }
+}
+
+*********************************************
+
+package com.test.spring.boot.config;
+
+import com.test.spring.boot.exception.UserNotApprovedException;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.*;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+@Component
+public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
+
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request,
+                                         HttpServletResponse response,
+                                         AuthenticationException exception)
+            throws IOException, ServletException {
+
+        String redirectUrl = "/login?error";
+
         if (exception.getCause() instanceof UserNotApprovedException ||
             exception instanceof UserNotApprovedException) {
             redirectUrl = "/login?error=pending";
