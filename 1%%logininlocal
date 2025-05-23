@@ -1,3 +1,76 @@
+@GetMapping("/admin/pending-users")
+public String showPendingUsers(Model model) {
+    List<AppUser> pendingUsers = userService.getPendingUsers();
+    model.addAttribute("users", pendingUsers);
+    return "pending-users";
+}
+
+@PostMapping("/admin/approve/{id}")
+public String approveUser(@PathVariable Long id) {
+    userService.approveUser(id);
+    return "redirect:/admin/pending-users";
+}
+
+*****************************************************************
+
+src/main/resources/templates/pending-users.html
+
+***************************************************************
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Pending Users</title>
+</head>
+<body>
+    <h2>Pending User Approvals</h2>
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Full Name</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+        <tr th:each="user : ${users}">
+            <td th:text="${user.id}"></td>
+            <td th:text="${user.fullName}"></td>
+            <td th:text="${user.username}"></td>
+            <td th:text="${user.status}"></td>
+            <td>
+                <form th:action="@{'/admin/approve/' + ${user.id}}" method="post">
+                    <button type="submit">Approve</button>
+                </form>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+
+*****************************************************************
+
+.authorizeHttpRequests(auth -> auth
+    .requestMatchers("/admin/**").hasRole("ADMIN")
+
+******************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 package com.test.spring.boot.config;
 
 import com.test.spring.boot.exception.UserNotApprovedException;
