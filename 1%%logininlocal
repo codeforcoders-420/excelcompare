@@ -1,0 +1,80 @@
+<form class="flip-card__form" th:action="@{/signup}" method="post" th:object="${user}">
+    <input class="flip-card__input" th:field="*{fullName}" placeholder="Name" type="text"/>
+    <input class="flip-card__input" th:field="*{username}" placeholder="Email" type="text"/>
+    <input class="flip-card__input" th:field="*{password}" placeholder="Password" type="password"/>
+    <button class="flip-card__btn">Confirm!</button>
+</form>
+
+***************************************************
+
+@GetMapping("/login")
+public String loginPage(Model model) {
+    model.addAttribute("user", new User()); // for signup form
+    return "login";
+}
+
+@PostMapping("/signup")
+public String processSignup(@ModelAttribute User user, Model model) {
+    userService.registerUser(user); // save user with PENDING status
+    model.addAttribute("message", "Signup successful! Awaiting admin approval.");
+    return "login"; // return to login screen
+}
+
+
+****************************************************************
+
+public void registerUser(User user) {
+    user.setPassword(passwordEncoder.encode(user.getPassword()));
+    user.setStatus(User.Status.PENDING);
+    userRepository.save(user);
+}
+
+*****************************************************************
+
+package com.test.spring.boot.model;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "users")
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(unique = true)
+    private String username;
+
+    private String password;
+    private String fullName;
+
+    @Enumerated(EnumType.STRING)
+    private Status status;
+
+    public enum Status {
+        PENDING,
+        APPROVED
+    }
+
+    // Getters and Setters
+    public Long getId() { return id; }
+
+    public void setId(Long id) { this.id = id; }
+
+    public String getUsername() { return username; }
+
+    public void setUsername(String username) { this.username = username; }
+
+    public String getPassword() { return password; }
+
+    public void setPassword(String password) { this.password = password; }
+
+    public String getFullName() { return fullName; }
+
+    public void setFullName(String fullName) { this.fullName = fullName; }
+
+    public Status getStatus() { return status; }
+
+    public void setStatus(Status status) { this.status = status; }
+}
