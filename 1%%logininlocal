@@ -1,3 +1,12 @@
+<form class="flip-card__form" action="/login" method="post">
+    <input class="flip-card__input" name="username" placeholder="Username" type="text" required>
+    <input class="flip-card__input" name="password" placeholder="Password" type="password" required>
+    <button class="flip-card__btn">Let's go!</button>
+</form>
+
+*****************************************************************
+
+
 INSERT INTO users (full_name, username, password, status)
 VALUES ('Admin', 'admin', '<bcrypt-password>', 'APPROVED');
 
