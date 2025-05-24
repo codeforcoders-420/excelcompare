@@ -1,0 +1,17 @@
+<!-- Place this inside <body> before or inside the form section -->
+<div th:if="${param.error}" class="error-message">
+    <p th:switch="${param.error}">
+        <span th:case="'pending'">Account approval is pending. Please contact Admin for approval.</span>
+        <span th:case="'invalid'">Username or password is incorrect.</span>
+        <span th:case="'locked'">Your account is locked. Please contact Admin.</span>
+        <span th:case="*">An unknown error occurred.</span>
+    </p>
+</div>
+
+
+.error-message {
+  color: red;
+  font-weight: bold;
+  margin-bottom: 10px;
+  text-align: center;
+}
