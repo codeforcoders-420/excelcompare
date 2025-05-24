@@ -1,4 +1,90 @@
+package com.test.spring.boot.config;
 
+import com.test.spring.boot.UserNotApprovedException;
+import com.test.spring.boot.model.AppUser;
+import com.test.spring.boot.repository.UserRepository;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.stereotype.Component;
+import org.springframework.web.context.annotation.SessionScope;
+import java.io.IOException;
+import java.util.Optional;
+
+@Component
+@SessionScope
+public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
+
+    private final UserRepository userRepository;
+
+    public CustomAuthFailureHandler(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        AuthenticationException exception)
+            throws IOException, ServletException {
+
+        String csid = request.getParameter("username");
+        String redirectUrl = "/login?error";
+
+        Optional<AppUser> optionalUser = userRepository.findByCsid(csid);
+        if (optionalUser.isPresent()) {
+            AppUser user = optionalUser.get();
+
+            // Count failed login attempts only for approved and unlocked users
+            if (user.getStatus() == AppUser.Status.APPROVED && user.isAccountNonLocked()) {
+                int newAttempts = user.getFailedAttempts() + 1;
+                user.setFailedAttempts(newAttempts);
+
+                if (newAttempts >= 5) {
+                    user.setAccountNonLocked(false); // Lock the account
+                    redirectUrl = "/login?error=locked";
+                }
+
+                userRepository.save(user);
+            }
+        }
+
+        if (exception.getCause() instanceof UserNotApprovedException) {
+            redirectUrl = "/login?error=pending";
+        } else if (exception instanceof BadCredentialsException) {
+            redirectUrl = "/login?error=badcredentials";
+        }
+
+        response.sendRedirect(redirectUrl);
+    }
+}
+
+**********************
+<div class="flip-card__front">
+    <div class="title">Log in</div>
+
+    <!-- Error message block -->
+    <div th:if="${param.error}" class="error-message" style="color: red; font-weight: bold; text-align: center;">
+        <p th:if="${param.error[0] == 'pending'}">Account approval is pending. Please contact admin.</p>
+        <p th:if="${param.error[0] == 'badcredentials'}">Username or password is incorrect.</p>
+        <p th:if="${param.error[0] == 'locked'}">Your account has been locked due to 5 failed attempts. Contact admin to unlock.</p>
+        <p th:if="${param.error[0] != 'pending' and param.error[0] != 'badcredentials' and param.error[0] != 'locked'}">
+            An unknown error occurred.
+        </p>
+    </div>
+
+    <!-- Login form -->
+    <form class="flip-card__form" action="/login" method="post">
+        <input class="flip-card__input" name="username" placeholder="CS ID" type="text" required>
+        <input class="flip-card__input" name="password" placeholder="Password" type="password" required>
+        <button class="flip-card__btn">Let's go!</button>
+    </form>
+</div>
+
+
+***********************
 @Component
 public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
 
