@@ -1,3 +1,50 @@
+
+@Component
+public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        AuthenticationException exception)
+            throws IOException, ServletException {
+
+        String username = request.getParameter("username");
+
+        userRepository.findByUsername(username).ifPresent(user -> {
+            if (user.getStatus() == AppUser.Status.APPROVED && user.isAccountNonLocked()) {
+                int attempts = user.getFailedAttempts() + 1;
+                user.setFailedAttempts(attempts);
+                if (attempts >= MAX_FAILED_ATTEMPTS) {
+                    user.setAccountNonLocked(false);
+                }
+                userRepository.save(user);
+            }
+        });
+
+        response.sendRedirect("/login?error=invalid");
+    }
+}
+
+
+***************#$#$
+
+
+if (!user.isAccountNonLocked()) {
+    throw new LockedException("Account locked due to multiple failed login attempts");
+}
+
+Optional<AppUser> findByUsername(String username);
+
+*********************
+
+
+
+
 @Component
 public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
 
