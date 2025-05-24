@@ -15,3 +15,10 @@
   margin-bottom: 10px;
   text-align: center;
 }
+
+<p th:if="${param.error != null}">
+    <span th:if="${param.error[0] == 'pending'}" style="color:red;">Account approval is pending. Please contact Admin for approval.</span>
+    <span th:if="${param.error[0] == 'invalid'}" style="color:red;">Username or password is incorrect.</span>
+    <span th:if="${param.error[0] == 'locked'}" style="color:red;">Your account is locked. Please contact Admin.</span>
+    <span th:if="${param.error[0] != 'pending' and param.error[0] != 'invalid' and param.error[0] != 'locked'}" style="color:red;">An unknown error occurred.</span>
+</p>
