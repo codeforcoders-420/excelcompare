@@ -1,3 +1,159 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.*;
+import java.nio.file.Files;
+import java.sql.*;
+import java.text.DecimalFormat;
+import java.util.*;
+
+public class DtSpanValidator {
+
+    private static final DecimalFormat decimalFormat = new DecimalFormat("0.0000");
+
+    public void validateAgainstDB(File dtSpanFile, File outputDifferencesFile, String jdbcUrl, String query) throws Exception {
+
+        // Step 1: Run query and write to temp Excel file
+        File tempCfgFile = File.createTempFile("DataFromCFG", ".xlsx");
+        exportQueryResultsToExcel(jdbcUrl, query, tempCfgFile);
+
+        // Step 2: Compare DT Span and Temp Excel
+        compareExcelFiles(dtSpanFile, tempCfgFile, outputDifferencesFile);
+
+        // Step 3: Delete the temp file
+        if (tempCfgFile.exists()) {
+            tempCfgFile.delete();
+        }
+    }
+
+    private void exportQueryResultsToExcel(String jdbcUrl, String query, File outputFile) throws Exception {
+        try (
+                Connection conn = DriverManager.getConnection(jdbcUrl);
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(query);
+                Workbook workbook = new XSSFWorkbook();
+                FileOutputStream fos = new FileOutputStream(outputFile)
+        ) {
+            Sheet sheet = workbook.createSheet("CFG Data");
+            ResultSetMetaData meta = rs.getMetaData();
+
+            // Header
+            Row header = sheet.createRow(0);
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                header.createCell(i - 1).setCellValue(meta.getColumnName(i));
+            }
+
+            // Data
+            int rowNum = 1;
+            while (rs.next()) {
+                Row row = sheet.createRow(rowNum++);
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    Object value = rs.getObject(i);
+                    row.createCell(i - 1).setCellValue(value != null ? value.toString() : "");
+                }
+            }
+
+            workbook.write(fos);
+        }
+    }
+
+    private void compareExcelFiles(File dtSpanFile, File cfgFile, File outputFile) throws Exception {
+        Workbook dtWorkbook = WorkbookFactory.create(dtSpanFile);
+        Workbook cfgWorkbook = WorkbookFactory.create(cfgFile);
+
+        Sheet dtSheet = dtWorkbook.getSheetAt(0);
+        Sheet cfgSheet = cfgWorkbook.getSheetAt(0);
+
+        // Map from CFG Excel
+        Map<String, String> cfgMap = new HashMap<>();
+        for (int i = 1; i <= cfgSheet.getLastRowNum(); i++) {
+            Row row = cfgSheet.getRow(i);
+            if (row == null) continue;
+
+            String key = row.getCell(0).toString().trim() + "_" +
+                         row.getCell(1).toString().trim() + "_" +
+                         row.getCell(2).toString().trim() + "_" +
+                         row.getCell(3).toString().trim() + "_" +
+                         row.getCell(4).toString().trim();
+
+            String allowed = decimalFormat.format(Double.parseDouble(row.getCell(5).toString().trim()));
+            cfgMap.put(key, allowed);
+        }
+
+        // Output Workbook
+        Workbook diffWorkbook = new XSSFWorkbook();
+        Sheet diffSheet = diffWorkbook.createSheet("Differences");
+
+        Row header = diffSheet.createRow(0);
+        header.createCell(0).setCellValue("PROC");
+        header.createCell(1).setCellValue("MOD");
+        header.createCell(2).setCellValue("MOD2");
+        header.createCell(3).setCellValue("Start Date");
+        header.createCell(4).setCellValue("End Date");
+        header.createCell(5).setCellValue("DT Rate");
+        header.createCell(6).setCellValue("CFG Rate");
+        header.createCell(7).setCellValue("Difference Type");
+
+        int outRow = 1;
+        for (int i = 1; i <= dtSheet.getLastRowNum(); i++) {
+            Row row = dtSheet.getRow(i);
+            if (row == null) continue;
+
+            String proc = row.getCell(0).toString().trim();
+            String mod1 = row.getCell(1).toString().trim();
+            String mod2 = row.getCell(2).toString().trim();
+            String start = row.getCell(3).toString().trim();
+            String end = row.getCell(4).toString().trim();
+            String dtRate = decimalFormat.format(Double.parseDouble(row.getCell(5).toString().trim()));
+
+            String key = proc + "_" + mod1 + "_" + mod2 + "_" + start + "_" + end;
+
+            if (!cfgMap.containsKey(key)) {
+                Row diffRow = diffSheet.createRow(outRow++);
+                fillDiffRow(diffRow, proc, mod1, mod2, start, end, dtRate, "Not Found", "Missing in CFG");
+            } else if (!dtRate.equals(cfgMap.get(key))) {
+                Row diffRow = diffSheet.createRow(outRow++);
+                fillDiffRow(diffRow, proc, mod1, mod2, start, end, dtRate, cfgMap.get(key), "Rate Mismatch");
+            }
+        }
+
+        // Write result
+        try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+            diffWorkbook.write(fos);
+        }
+
+        dtWorkbook.close();
+        cfgWorkbook.close();
+    }
+
+    private void fillDiffRow(Row row, String proc, String mod1, String mod2, String start, String end,
+                             String dtRate, String cfgRate, String reason) {
+        row.createCell(0).setCellValue(proc);
+        row.createCell(1).setCellValue(mod1);
+        row.createCell(2).setCellValue(mod2);
+        row.createCell(3).setCellValue(start);
+        row.createCell(4).setCellValue(end);
+        row.createCell(5).setCellValue(dtRate);
+        row.createCell(6).setCellValue(cfgRate);
+        row.createCell(7).setCellValue(reason);
+    }
+}
+
+*****************************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <script>
   function compareAndSubmitFiles() {
     const formData = new FormData();
