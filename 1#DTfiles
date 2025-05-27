@@ -1,0 +1,66 @@
+<script>
+  function compareAndSubmitFiles() {
+    const formData = new FormData();
+
+    // 1. Collect files
+    const filesInput = document.querySelector('input[name="files"]');
+    const files = filesInput.files;
+    for (let i = 0; i < files.length; i++) {
+      formData.append("files", files[i]);
+    }
+
+    // 2. Collect dropdown value (Market/Column Header)
+    const columnName = document.getElementById("marketDropdown").value;
+    formData.append("columnname", columnName);
+
+    // 3. Collect row number
+    const rowNumber = document.getElementById("rowNumber").value;
+    formData.append("linenumber", rowNumber);
+
+    // 4. Collect column number
+    const columnNumber = document.getElementById("columnNumber").value;
+    formData.append("columnnumber", columnNumber);
+
+    // 5. Submit using fetch POST to controller
+    fetch('/upload', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      if (response.ok) {
+        alert("Files processed successfully.");
+        // Optionally redirect or reset form
+      } else {
+        alert("Error processing files.");
+      }
+    })
+    .catch(error => {
+      console.error("Error submitting form:", error);
+      alert("Something went wrong.");
+    });
+  }
+</script>
+
+
+**************************************
+
+@PostMapping("/upload")
+public String handleFileUpload(@RequestParam("files") MultipartFile[] files,
+                               @RequestParam String columnname,
+                               @RequestParam int linenumber,
+                               @RequestParam int columnnumber) throws IOException {
+
+    File tempFolder = Files.createTempDirectory("exceluploads").toFile();
+
+    for (MultipartFile file : files) {
+        String filename = file.getOriginalFilename();
+        if (filename != null && (filename.endsWith(".xls") || filename.endsWith(".xlsx"))) {
+            File tempFile = new File(tempFolder, filename);
+            file.transferTo(tempFile);
+        }
+    }
+
+    processExcelFiles(tempFolder, columnname, linenumber, columnnumber);
+
+    return "redirect:/success";
+}
