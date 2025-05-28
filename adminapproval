@@ -1,0 +1,60 @@
+<div class="user-dropdown">
+    <span class="username-toggle" onclick="toggleDropdown()">
+        Hello, <span th:text="${username}">User</span> ▼
+    </span>
+    <div id="dropdown-menu" class="dropdown-content" style="display:none;">
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Logout</button>
+        </form>
+    </div>
+</div>
+
+
+*************************************************
+
+.user-dropdown {
+    position: relative;
+    display: inline-block;
+    float: right;
+    margin-right: 20px;
+}
+
+.username-toggle {
+    cursor: pointer;
+    font-weight: bold;
+    color: #000;
+}
+
+.dropdown-content {
+    position: absolute;
+    background-color: #f1f1f1;
+    min-width: 120px;
+    right: 0;
+    box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+.dropdown-content form {
+    margin: 0;
+    padding: 10px;
+    text-align: left;
+}
+
+****************************************************************
+
+<script>
+    function toggleDropdown() {
+        var menu = document.getElementById("dropdown-menu");
+        menu.style.display = menu.style.display === "block" ? "none" : "block";
+    }
+
+    // Optional: close dropdown when clicking outside
+    window.onclick = function(event) {
+        if (!event.target.matches('.username-toggle')) {
+            var dropdowns = document.getElementsByClassName("dropdown-content");
+            for (let i = 0; i < dropdowns.length; i++) {
+                dropdowns[i].style.display = "none";
+            }
+        }
+    }
+</script>
