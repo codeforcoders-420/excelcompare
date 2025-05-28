@@ -1,3 +1,107 @@
+*****************************************
+
+<!-- This goes in your navigation bar -->
+<button id="openPendingModal" class="btn btn-primary" th:if="${role == 'ADMIN'}">
+    Pending Approvals
+</button>
+
+
+
+*****************************************
+
+
+<!-- Pending Users Modal -->
+<div id="pendingModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" id="closeModal">&times;</span>
+        <h2>Pending User Approvals</h2>
+        <table border="1">
+            <tr>
+                <th>ID</th>
+                <th>Full Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+            <tr th:each="user : ${pendingUsers}">
+                <td th:text="${user.id}"></td>
+                <td th:text="${user.fullName}"></td>
+                <td th:text="${user.csemail}"></td>
+                <td th:text="${user.status}"></td>
+                <td>
+                    <form th:action="@{'/admin/approve/' + ${user.id}}" method="post">
+                        <button type="submit">Approve</button>
+                    </form>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+
+*****************************************
+
+
+<script>
+    const modal = document.getElementById('pendingModal');
+    const btn = document.getElementById('openPendingModal');
+    const close = document.getElementById('closeModal');
+
+    btn.onclick = function() {
+        modal.style.display = "block";
+    }
+
+    close.onclick = function() {
+        modal.style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+</script>
+
+*****************************************
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 10% auto;
+    padding: 20px;
+    width: 60%;
+    border-radius: 8px;
+}
+
+.close {
+    color: red;
+    float: right;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+
+
+*****************************************
+
+
+
+
+
+
+*****************************************
 model.addAttribute("role", user.getRole()); // assuming `getRole()` returns "ADMIN" or "ANALYST"
 
 **********************
@@ -20,35 +124,7 @@ public String home(Authentication auth, Model model) {
     return "homepage";
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+*****************************************
 
 @GetMapping("/admin/pending-users")
 public String showPendingUsers(Model model) {
