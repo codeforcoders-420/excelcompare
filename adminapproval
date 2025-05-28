@@ -1,3 +1,89 @@
+@Column(nullable = false)
+private String role; // "ADMIN" or "ANALYST"
+
+// Getter and Setter
+public String getRole() {
+    return role;
+}
+
+public void setRole(String role) {
+    this.role = role;
+}
+
+********************************************
+
+<select class="flip-card__input" th:field="*{role}" name="role" required>
+    <option value="">Select Role</option>
+    <option value="ADMIN">Admin</option>
+    <option value="ANALYST">Analyst</option>
+</select>
+
+**************************************
+
+boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
+
+return User.withUsername(user.getCsid())
+        .password(user.getPassword())
+        .roles(isAdmin ? "ADMIN" : "ANALYST")
+        .accountLocked(!user.isAccountNonLocked())
+        .build();
+
+*****************************************
+
+ALTER TABLE USERS ADD COLUMN ROLE VARCHAR(20);
+
+**********************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @Bean
 public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http
