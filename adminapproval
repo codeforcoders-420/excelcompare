@@ -1,3 +1,55 @@
+model.addAttribute("role", user.getRole()); // assuming `getRole()` returns "ADMIN" or "ANALYST"
+
+**********************
+
+@GetMapping("/home")
+public String home(Authentication auth, Model model) {
+    String csid = auth.getName();
+    AppUser user = userRepository.findByCsid(csid).orElse(null);
+
+    if (user != null) {
+        model.addAttribute("username", user.getFullName());
+        model.addAttribute("role", user.getRole()); // Use actual role from DB
+
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+            List<AppUser> pendingUsers = userService.getPendingUsers();
+            model.addAttribute("pendingUsers", pendingUsers);
+        }
+    }
+
+    return "homepage";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @GetMapping("/admin/pending-users")
 public String showPendingUsers(Model model) {
     List<AppUser> pendingUsers = userService.getPendingUsers();
