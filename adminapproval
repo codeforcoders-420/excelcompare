@@ -1,3 +1,26 @@
+@GetMapping("/home")
+public String home(Authentication auth, Model model) {
+    String csid = auth.getName();  // This gives us the logged-in CSID
+    AppUser user = userRepository.findByCsid(csid).orElse(null);
+
+    if (user != null) {
+        model.addAttribute("username", user.getFullName());  // ✅ Pass full name to view
+    } else {
+        model.addAttribute("username", "User");
+    }
+
+    return "home";
+}
+
+************************************
+
+Hello, <span th:text="${username}">User</span>
+
+
+*****************************************************************
+
+
+
 <div class="user-dropdown">
     <span class="username-toggle" onclick="toggleDropdown()">
         Hello, <span th:text="${username}">User</span> ▼
