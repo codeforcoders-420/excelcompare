@@ -1,0 +1,125 @@
+import java.io.*;
+import java.nio.file.*;
+import java.sql.*;
+import java.util.*;
+
+public class ExportCsvWithLayout {
+
+    // Set output file location
+    private static final String OUTPUT_CSV = "C:/Users/Reports/ExportedTable.csv";
+
+    public static void main(String[] args) {
+        String connectionUrl = "jdbc:sqlserver://localhost:1433;databaseName=YourDatabaseName;integratedSecurity=true;encrypt=false;";
+
+        // Query 1 - Metadata query (adjust fields as per your SQL)
+        String query1 = """
+            SELECT 
+                'V1' AS FeeScheduleWithModifiers,
+                NSHC_SCHEDULE_CODE AS [Schedule Code],
+                NSHC_SCHEDULE_NAME AS [Schedule Name],
+                NSHC_TABLE_NAME AS [Table Name],
+                NSHC_TABLE_TYPE AS [Table Type],
+                NSHC_COMMENT AS Comment,
+                CASE WHEN NSHC_ACTIVE_IND = 1 THEN 'Y' ELSE 'N' END AS Active,
+                NSHC_VERSION AS Version,
+                FORMAT(NSHC_EFF_DT, 'MM/dd/yyyy') AS Effective,
+                FORMAT(NSHC_TERM_DT, 'MM/dd/yyyy') AS Termination,
+                CAST(NSHC_SOURCE_PCT AS VARCHAR) AS [Base Percent],
+                CAST(NSHC_DEFAULT_PCT AS VARCHAR) AS [Default Percent],
+                NSHC_MOD_ORDER AS [Order]
+            FROM NSHC_SCHEDULES 
+            WHERE NSHC_BASE_TABLE = 'WI MP FOREFRONT'
+        """;
+
+        // Query 2 - Table Data (adjust field names as needed)
+        String query2 = """
+            SELECT 
+                NSUM_PROCEDURE_CD AS [Procedure Code],
+                NSUM_MODIFIER AS Modifier,
+                NSUM_DESC AS Description,
+                FORMAT(NSUM_EFF_DT, 'MM/dd/yyyy') AS Effective,
+                FORMAT(NSUM_TERM_DT, 'MM/dd/yyyy') AS Termination,
+                CASE WHEN NSUM_ALLOW_IND = 1 THEN 'Allowed' ELSE 'Not Allowed' END AS [Reimbursement Method],
+                CAST(NSUM_ALLOWED_AMT AS FLOAT) AS Allowed,
+                CAST(NSUM_PCT AS FLOAT) AS Percent,
+                NSUM_FOLLOWUP_DAYS AS [Follow-up],
+                TRIM(NSUM_MODIFIER2) AS Modifier2,
+                TRIM(NSUM_MODIFIER3) AS Modifier3,
+                TRIM(NSUM_MODIFIER4) AS Modified
+            FROM NSUM_SCHEDULE_MOD
+            WHERE NSUM_TABLE = 'WI MP FOREFRONT'
+            ORDER BY [Procedure Code], Modifier
+        """;
+
+        try (Connection conn = DriverManager.getConnection(connectionUrl);
+             BufferedWriter writer = Files.newBufferedWriter(Paths.get(OUTPUT_CSV))) {
+
+            // Query 1 - Metadata
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs1 = stmt.executeQuery(query1)) {
+
+                if (rs1.next()) {
+                    // Row 1
+                    writer.write("Fee Schedule With Modifiers,V1\n");
+
+                    // Rows 2-6 (Column A = Header, Column C = Value)
+                    writer.write("Schedule Code,,\"" + rs1.getString("Schedule Code") + "\"\n");
+                    writer.write("Schedule Name,,\"" + rs1.getString("Schedule Name") + "\"\n");
+                    writer.write("Table Name,,\"" + rs1.getString("Table Name") + "\"\n");
+                    writer.write("Table Type,,\"" + rs1.getString("Table Type") + "\"\n");
+                    writer.write("Comment,,\"" + rs1.getString("Comment") + "\"\n");
+
+                    // Row 7 - Horizontal headers
+                    writer.write("Active,Version,Effective,Termination,Base Percent,Default Percent,Order\n");
+
+                    // Row 8 - Horizontal values
+                    writer.write(String.join(",",
+                            rs1.getString("Active"),
+                            rs1.getString("Version"),
+                            rs1.getString("Effective"),
+                            rs1.getString("Termination"),
+                            rs1.getString("Base Percent"),
+                            rs1.getString("Default Percent"),
+                            rs1.getString("Order")) + "\n");
+                }
+            }
+
+            // Add a blank line for clarity
+            writer.write("\n");
+
+            // Query 2 - Table Data
+            try (Statement stmt2 = conn.createStatement();
+                 ResultSet rs2 = stmt2.executeQuery(query2)) {
+
+                ResultSetMetaData meta = rs2.getMetaData();
+                int columnCount = meta.getColumnCount();
+
+                // Header row
+                List<String> headers = new ArrayList<>();
+                for (int i = 1; i <= columnCount; i++) {
+                    headers.add(meta.getColumnLabel(i));
+                }
+                writer.write(String.join(",", headers) + "\n");
+
+                // Data rows
+                while (rs2.next()) {
+                    List<String> row = new ArrayList<>();
+                    for (int i = 1; i <= columnCount; i++) {
+                        String value = rs2.getString(i);
+                        if (meta.getColumnLabel(i).equalsIgnoreCase("Allowed") || meta.getColumnLabel(i).equalsIgnoreCase("Percent")) {
+                            double number = rs2.getDouble(i);
+                            value = String.format("%.4f", number);
+                        }
+                        row.add(value != null ? "\"" + value + "\"" : "");
+                    }
+                    writer.write(String.join(",", row) + "\n");
+                }
+            }
+
+            System.out.println("✅ CSV exported successfully to: " + OUTPUT_CSV);
+
+        } catch (SQLException | IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
