@@ -1,0 +1,141 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class PeerReviewValidator {
+
+    public record MatchKey(String proc, String mod1, String mod2, String mod3, String mod4,
+                           String endDate, String pricingMethod, String rate) {}
+
+    public record DbRow(String proc, String mod1, String mod2, String mod3, String mod4,
+                        String effDate, String endDate, String pricingMethod, String rate) {}
+
+    public record UserRow(String proc, String mod1, String mod2, String mod3, String mod4,
+                          String effDate, String endDate, String pricingMethod,
+                          String newRate, String comment) {}
+
+    public static String normalize(String val) {
+        return val == null ? "" : val.trim().toUpperCase();
+    }
+
+    public static String normalizeRate(String val) {
+        try {
+            return String.format("%.4f", Double.parseDouble(val.replace("$", "").trim()));
+        } catch (Exception e) {
+            return "0.0000";
+        }
+    }
+
+    public static void validateExcelFiles(String userFilePath, String tempDbFilePath, String outputPath) throws Exception {
+        try (
+            FileInputStream userFis = new FileInputStream(userFilePath);
+            FileInputStream dbFis = new FileInputStream(tempDbFilePath);
+            Workbook userWb = new XSSFWorkbook(userFis);
+            Workbook dbWb = new XSSFWorkbook(dbFis);
+            Workbook outWb = new XSSFWorkbook()
+        ) {
+            Sheet userSheet = userWb.getSheetAt(0);
+            Sheet dbSheet = dbWb.getSheetAt(0);
+            Sheet outSheet = outWb.createSheet("Validation Result");
+
+            List<UserRow> userRows = new ArrayList<>();
+            for (int i = 1; i <= userSheet.getLastRowNum(); i++) {
+                Row r = userSheet.getRow(i);
+                userRows.add(new UserRow(
+                    normalize(r.getCell(1).toString()), normalize(r.getCell(2).toString()),
+                    normalize(r.getCell(3).toString()), normalize(r.getCell(4).toString()),
+                    normalize(r.getCell(5).toString()), normalize(r.getCell(6).toString()),
+                    normalize(r.getCell(7).toString()), normalize(r.getCell(8).toString()),
+                    normalizeRate(r.getCell(9).toString()), normalize(r.getCell(11).toString())
+                ));
+            }
+
+            List<DbRow> dbRows = new ArrayList<>();
+            for (int i = 1; i <= dbSheet.getLastRowNum(); i++) {
+                Row r = dbSheet.getRow(i);
+                dbRows.add(new DbRow(
+                    normalize(r.getCell(1).toString()), normalize(r.getCell(2).toString()),
+                    normalize(r.getCell(3).toString()), normalize(r.getCell(4).toString()),
+                    normalize(r.getCell(5).toString()), normalize(r.getCell(6).toString()),
+                    normalize(r.getCell(7).toString()), normalize(r.getCell(8).toString()),
+                    normalizeRate(r.getCell(9).toString())
+                ));
+            }
+
+            Map<MatchKey, List<DbRow>> dbIndex = dbRows.stream()
+                .collect(Collectors.groupingBy(row ->
+                    new MatchKey(row.proc(), row.mod1(), row.mod2(), row.mod3(), row.mod4(),
+                                 row.endDate(), row.pricingMethod(), row.rate())
+                ));
+
+            // Header
+            Row header = outSheet.createRow(0);
+            header.createCell(0).setCellValue("Procedure Code");
+            header.createCell(1).setCellValue("New Rate");
+            header.createCell(2).setCellValue("Comments");
+            header.createCell(3).setCellValue("Validation Result");
+
+            int rowNum = 1;
+            for (UserRow u : userRows) {
+                MatchKey key = new MatchKey(u.proc(), u.mod1(), u.mod2(), u.mod3(), u.mod4(),
+                                            u.endDate(), u.pricingMethod(), u.newRate());
+
+                List<DbRow> matches = dbIndex.getOrDefault(key, List.of());
+
+                if (u.comment().equals("NEW CODE")) {
+                    matches = matches.stream()
+                        .filter(d -> d.effDate().equals(u.effDate()))
+                        .collect(Collectors.toList());
+                }
+
+                String result = matches.size() == 1 ? "Match Found" : "No Match Found";
+
+                Row outRow = outSheet.createRow(rowNum++);
+                outRow.createCell(0).setCellValue(u.proc());
+                outRow.createCell(1).setCellValue(u.newRate());
+                outRow.createCell(2).setCellValue(u.comment());
+                outRow.createCell(3).setCellValue(result);
+            }
+
+            try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                outWb.write(fos);
+            }
+
+            System.out.println("Validation completed. Output written to: " + outputPath);
+        }
+    }
+}
+*****************************************************************
+
+public void runQueryAndWriteToExcel(String query, String tempFilePath, Connection conn) throws Exception {
+    Statement stmt = conn.createStatement();
+    ResultSet rs = stmt.executeQuery(query);
+
+    Workbook workbook = new XSSFWorkbook();
+    Sheet sheet = workbook.createSheet("DB_Data");
+
+    // Write header
+    ResultSetMetaData metaData = rs.getMetaData();
+    int columnCount = metaData.getColumnCount();
+    Row header = sheet.createRow(0);
+    for (int i = 1; i <= columnCount; i++) {
+        header.createCell(i - 1).setCellValue(metaData.getColumnName(i));
+    }
+
+    // Write data rows
+    int rowIndex = 1;
+    while (rs.next()) {
+        Row row = sheet.createRow(rowIndex++);
+        for (int i = 1; i <= columnCount; i++) {
+            row.createCell(i - 1).setCellValue(rs.getString(i));
+        }
+    }
+
+    try (FileOutputStream fos = new FileOutputStream(tempFilePath)) {
+        workbook.write(fos);
+    }
+    workbook.close();
+}
