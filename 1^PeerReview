@@ -1,3 +1,80 @@
+public static void validateExcelFiles(String userFilePath, String tempDbFilePath, String outputPath) throws Exception {
+    try (
+        FileInputStream userFis = new FileInputStream(userFilePath);
+        FileInputStream dbFis = new FileInputStream(tempDbFilePath);
+        Workbook userWb = new XSSFWorkbook(userFis);
+        Workbook dbWb = new XSSFWorkbook(dbFis)
+    ) {
+        Sheet userSheet = userWb.getSheetAt(0);
+        Sheet dbSheet = dbWb.getSheetAt(0);
+
+        // 1. Load DB records
+        List<DbRow> dbRows = new ArrayList<>();
+        for (int i = 1; i <= dbSheet.getLastRowNum(); i++) {
+            Row r = dbSheet.getRow(i);
+            dbRows.add(new DbRow(
+                normalize(r.getCell(1).toString()), normalize(r.getCell(2).toString()),
+                normalize(r.getCell(3).toString()), normalize(r.getCell(4).toString()),
+                normalize(r.getCell(5).toString()), normalize(r.getCell(6).toString()),
+                normalize(r.getCell(7).toString()), normalize(r.getCell(8).toString()),
+                normalizeRate(r.getCell(9).toString())
+            ));
+        }
+
+        // 2. Build Index Map for Fast Lookup
+        Map<MatchKey, List<DbRow>> dbIndex = dbRows.stream()
+            .collect(Collectors.groupingBy(row ->
+                new MatchKey(row.proc(), row.mod1(), row.mod2(), row.mod3(), row.mod4(),
+                             row.endDate(), row.pricingMethod(), row.rate())
+            ));
+
+        // 3. Append "Validation Results" Header
+        Row headerRow = userSheet.getRow(0);
+        int resultColIndex = headerRow.getLastCellNum(); // Next available column
+        headerRow.createCell(resultColIndex).setCellValue("Validation Results");
+
+        // 4. Validate each user row
+        for (int i = 1; i <= userSheet.getLastRowNum(); i++) {
+            Row row = userSheet.getRow(i);
+            if (row == null) continue;
+
+            UserRow user = new UserRow(
+                normalize(row.getCell(1).toString()), normalize(row.getCell(2).toString()),
+                normalize(row.getCell(3).toString()), normalize(row.getCell(4).toString()),
+                normalize(row.getCell(5).toString()), normalize(row.getCell(6).toString()),
+                normalize(row.getCell(7).toString()), normalize(row.getCell(8).toString()),
+                normalizeRate(row.getCell(9).toString()), normalize(row.getCell(11).toString())
+            );
+
+            MatchKey key = new MatchKey(user.proc(), user.mod1(), user.mod2(), user.mod3(), user.mod4(),
+                                        user.endDate(), user.pricingMethod(), user.newRate());
+
+            List<DbRow> matches = dbIndex.getOrDefault(key, List.of());
+
+            if (user.comment().equals("NEW CODE")) {
+                matches = matches.stream()
+                    .filter(m -> m.effDate().equals(user.effDate()))
+                    .collect(Collectors.toList());
+            }
+
+            String result = matches.size() == 1 ? "Pass" : "Fail";
+            row.createCell(resultColIndex).setCellValue(result);
+        }
+
+        // 5. Save back to file
+        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+            userWb.write(fos);
+        }
+
+        System.out.println("Validation complete. Output written to: " + outputPath);
+    }
+}
+
+
+*********************************************************************************
+
+
+
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
