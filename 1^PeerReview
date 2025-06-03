@@ -1,3 +1,102 @@
+public static void validateUsingTemplate(String userFilePath, String dbFilePath, String templatePath, String outputPath) throws Exception {
+    try (
+        FileInputStream userFis = new FileInputStream(userFilePath);
+        FileInputStream dbFis = new FileInputStream(dbFilePath);
+        FileInputStream templateFis = new FileInputStream(templatePath);
+        Workbook userWb = new XSSFWorkbook(userFis);
+        Workbook dbWb = new XSSFWorkbook(dbFis);
+        Workbook templateWb = new XSSFWorkbook(templateFis) // Note: XSSFWorkbook supports .xlsm too
+    ) {
+        Sheet userSheet = userWb.getSheetAt(0);
+        Sheet dbSheet = dbWb.getSheetAt(0);
+        Sheet targetSheet = templateWb.getSheet("RPA Change File Vs CFG");
+
+        if (targetSheet == null) throw new RuntimeException("Sheet 'RPA Change File Vs CFG' not found in template.");
+
+        // STEP 1: Copy userSheet rows into template sheet
+        for (int i = 0; i <= userSheet.getLastRowNum(); i++) {
+            Row sourceRow = userSheet.getRow(i);
+            Row targetRow = targetSheet.createRow(i);
+            if (sourceRow == null) continue;
+
+            for (int j = 0; j < sourceRow.getLastCellNum(); j++) {
+                Cell newCell = targetRow.createCell(j);
+                Cell oldCell = sourceRow.getCell(j);
+                if (oldCell != null) {
+                    switch (oldCell.getCellType()) {
+                        case STRING -> newCell.setCellValue(oldCell.getStringCellValue());
+                        case NUMERIC -> newCell.setCellValue(oldCell.getNumericCellValue());
+                        case BOOLEAN -> newCell.setCellValue(oldCell.getBooleanCellValue());
+                        default -> newCell.setCellValue(oldCell.toString());
+                    }
+                }
+            }
+        }
+
+        // STEP 2: Build DB Index
+        List<DbRow> dbRows = new ArrayList<>();
+        for (int i = 1; i <= dbSheet.getLastRowNum(); i++) {
+            Row r = dbSheet.getRow(i);
+            dbRows.add(new DbRow(
+                normalize(r.getCell(1).toString()), normalize(r.getCell(2).toString()),
+                normalize(r.getCell(3).toString()), normalize(r.getCell(4).toString()),
+                normalize(r.getCell(5).toString()), normalize(r.getCell(6).toString()),
+                normalize(r.getCell(7).toString()), normalize(r.getCell(8).toString()),
+                normalizeRate(r.getCell(9).toString())
+            ));
+        }
+
+        Map<MatchKey, List<DbRow>> dbIndex = dbRows.stream()
+            .collect(Collectors.groupingBy(row ->
+                new MatchKey(row.proc(), row.mod1(), row.mod2(), row.mod3(), row.mod4(),
+                             row.endDate(), row.pricingMethod(), row.rate())
+            ));
+
+        // STEP 3: Apply validation directly in template sheet
+        Row headerRow = targetSheet.getRow(0);
+        int resultColIndex = headerRow.getLastCellNum();
+        headerRow.createCell(resultColIndex).setCellValue("Validation Results");
+
+        for (int i = 1; i <= targetSheet.getLastRowNum(); i++) {
+            Row row = targetSheet.getRow(i);
+            if (row == null) continue;
+
+            UserRow user = new UserRow(
+                normalize(row.getCell(1).toString()), normalize(row.getCell(2).toString()),
+                normalize(row.getCell(3).toString()), normalize(row.getCell(4).toString()),
+                normalize(row.getCell(5).toString()), normalize(row.getCell(6).toString()),
+                normalize(row.getCell(7).toString()), normalize(row.getCell(8).toString()),
+                normalizeRate(row.getCell(9).toString()), normalize(row.getCell(11).toString())
+            );
+
+            MatchKey key = new MatchKey(user.proc(), user.mod1(), user.mod2(), user.mod3(), user.mod4(),
+                                        user.endDate(), user.pricingMethod(), user.newRate());
+
+            List<DbRow> matches = dbIndex.getOrDefault(key, List.of());
+
+            if ("NEW CODE".equals(user.comment())) {
+                matches = matches.stream()
+                    .filter(m -> m.effDate().equals(user.effDate()))
+                    .collect(Collectors.toList());
+            }
+
+            String result = matches.size() == 1 ? "Pass" : "Fail";
+            row.createCell(resultColIndex).setCellValue(result);
+        }
+
+        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+            templateWb.write(fos); // Save updated .xlsm with validation results
+        }
+
+        System.out.println("Validation completed and written to: " + outputPath);
+    }
+}
+
+
+***********************************************************************
+
+
+
 public static void validateExcelFiles(String userFilePath, String tempDbFilePath, String outputPath) throws Exception {
     try (
         FileInputStream userFis = new FileInputStream(userFilePath);
