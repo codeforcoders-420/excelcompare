@@ -1,3 +1,68 @@
+public static String getCellValue(Row row, int cellIndex) {
+    if (row == null) return "";
+    Cell cell = row.getCell(cellIndex);
+    if (cell == null) return "";
+    return switch (cell.getCellType()) {
+        case STRING -> cell.getStringCellValue();
+        case NUMERIC -> String.valueOf(cell.getNumericCellValue());
+        case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+        case FORMULA -> cell.getCellFormula();
+        default -> cell.toString();
+    };
+}
+
+*******************************
+
+dbRows.add(new DbRow(
+    normalize(getCellValue(r, 1)),
+    normalize(getCellValue(r, 2)),
+    normalize(getCellValue(r, 3)),
+    normalize(getCellValue(r, 4)),
+    normalize(getCellValue(r, 5)),
+    normalize(getCellValue(r, 6)),
+    normalize(getCellValue(r, 7)),
+    normalize(getCellValue(r, 8)),
+    normalizeRate(getCellValue(r, 9))
+));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 public static void validateUsingTemplate(String userFilePath, String dbFilePath, String templatePath, String outputPath) throws Exception {
     try (
         FileInputStream userFis = new FileInputStream(userFilePath);
