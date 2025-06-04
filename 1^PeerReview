@@ -1,3 +1,90 @@
+String result = "Fail";
+
+switch (user.comment()) {
+    case "NEW CODE" -> {
+        matches = matches.stream()
+            .filter(m -> m.effDate().equals(user.effDate()))
+            .collect(Collectors.toList());
+        if (matches.size() == 1) result = "Pass";
+    }
+
+    case "TERMINATE" -> {
+        if (matches.size() == 1) result = "Pass";
+    }
+
+    case "DELETED" -> {
+        // Reverse logic: must NOT be found in DB
+        MatchKey deleteKey = new MatchKey(
+            user.proc(), user.mod1(), user.mod2(), user.mod3(), user.mod4(),
+            user.endDate(), user.pricingMethod(), user.newRate()
+        );
+        List<DbRow> deleteMatches = dbIndex.getOrDefault(deleteKey, List.of());
+
+        if (deleteMatches.isEmpty()) result = "Pass";
+    }
+
+    case "RATE CHANGE" -> {
+        // Part 1: Exact match on new rate line
+        boolean newRateMatch = matches.stream()
+            .anyMatch(m -> m.effDate().equals(user.effDate()));
+
+        // Part 2: Match on old rate row with end date = eff date - 1
+        String calculatedEndDate = calculatePreviousDate(user.effDate()); // e.g., "06/30/2025"
+        MatchKey oldRateKey = new MatchKey(
+            user.proc(), user.mod1(), user.mod2(), user.mod3(), user.mod4(),
+            calculatedEndDate, user.pricingMethod(), user.oldRate()  // ← oldRate is assumed as part of UserRow
+        );
+        List<DbRow> oldRateMatches = dbIndex.getOrDefault(oldRateKey, List.of());
+
+        if (newRateMatch && !oldRateMatches.isEmpty()) result = "Pass";
+    }
+}
+
+****************************************************************
+
+public static String calculatePreviousDate(String dateStr) {
+    try {
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+        LocalDate date = LocalDate.parse(dateStr, fmt);
+        return date.minusDays(1).format(fmt);
+    } catch (Exception e) {
+        return "";
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 public static String getCellValue(Row row, int cellIndex) {
     if (row == null) return "";
     Cell cell = row.getCell(cellIndex);
