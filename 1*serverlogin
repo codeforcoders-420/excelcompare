@@ -1,0 +1,18 @@
+@Bean
+CommandLineRunner init(UserRepository repo, PasswordEncoder encoder) {
+    return args -> {
+        if (repo.findByCsid("testuser").isEmpty()) {
+            AppUser user = new AppUser();
+            user.setCsid("testuser");
+            user.setFullName("Test User");
+            user.setEmail("testuser@example.com");
+            user.setPassword(encoder.encode("password"));
+            user.setFailedAttempts(0);
+            user.setAccountNonLocked(true);
+            user.setRole(AppUser.Role.ADMIN);
+            user.setStatus(AppUser.Status.PENDING);
+            repo.save(user);
+            System.out.println("✅ Dummy test user inserted.");
+        }
+    };
+}
