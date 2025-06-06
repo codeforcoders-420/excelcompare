@@ -1,3 +1,52 @@
+@PostMapping("/admin/approve/{id}")
+public String approveUser(@PathVariable Long id, Model model) {
+    AppUser user = userRepository.findById(id).orElseThrow();
+    user.setStatus(AppUser.Status.APPROVED);
+    userRepository.save(user);
+
+    List<AppUser> pendingUsers = userRepository.findAll().stream()
+        .filter(u -> u.getRole() != AppUser.Role.ADMIN)
+        .collect(Collectors.toList());
+
+    model.addAttribute("pendingUsers", pendingUsers);
+    return "pending-users-fragment :: pendingUsersTable";
+}
+
+****************************************************************
+
+<button th:if="${user.status.name() == 'PENDING'}"
+        th:attr="onclick=|updateUserStatus('${user.id}', 'approve')|"
+        class="approve-btn">Approve</button>
+
+<button th:if="${user.status.name() == 'APPROVED'}"
+        th:attr="onclick=|updateUserStatus('${user.id}', 'cancel')|"
+        class="cancel-btn">Cancel Access</button>
+
+
+****************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @GetMapping("/admin/pendingUsers")
 public String showPendingUsers(Model model, Authentication auth) {
     String currentUserCsid = auth.getName(); // Logged-in user
