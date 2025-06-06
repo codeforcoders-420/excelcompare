@@ -1,3 +1,126 @@
+@GetMapping("/admin/pending-users")
+public String showAllNonAdminUsers(Model model, Authentication auth) {
+    String csid = auth.getName(); // Logged-in user's CSID
+
+    List<AppUser> users = userRepository.findAll().stream()
+        .filter(user -> user.getRole() != AppUser.Role.ADMIN) // Exclude ADMINs
+        .filter(user -> !user.getCsid().equalsIgnoreCase(csid)) // Exclude logged-in admin
+        .collect(Collectors.toList());
+
+    model.addAttribute("users", users);
+    return "pending-users-fragment :: pendingUsersTable";
+}
+
+
+*****************************************
+
+<tbody id="pendingUsersTable">
+  <tr th:each="user : ${users}">
+    <td th:text="${user.id}">1</td>
+    <td th:text="${user.fullName}">Full Name</td>
+    <td th:text="${user.status}">Status</td>
+    <td>
+      <!-- Show Approve if PENDING -->
+      <button th:if="${user.status.name() == 'PENDING'}"
+              onclick="updateUserStatus([[${user.id}]], 'approve')"
+              class="approve-btn">Approve</button>
+
+      <!-- Show Cancel if APPROVED -->
+      <button th:if="${user.status.name() == 'APPROVED'}"
+              onclick="updateUserStatus([[${user.id}]], 'cancel')"
+              class="cancel-btn">Cancel Access</button>
+    </td>
+  </tr>
+</tbody>
+
+
+************************************************************
+
+<script>
+  function updateUserStatus(userId, action) {
+    const endpoint = `/admin/${action}/${userId}`;
+    fetch(endpoint, { method: 'POST' })
+      .then(response => response.text())
+      .then(fragment => {
+        document.getElementById("pendingUsersTable").innerHTML = fragment;
+      })
+      .catch(err => alert("Something went wrong: " + err));
+  }
+</script>
+
+
+*****************************************************************
+
+@PostMapping("/admin/approve/{id}")
+public String approveUser(@PathVariable Long id, Model model, Authentication auth) {
+    AppUser user = userRepository.findById(id).orElseThrow();
+    user.setStatus(AppUser.Status.APPROVED);
+    userRepository.save(user);
+
+    return refreshUserFragment(model, auth);
+}
+
+@PostMapping("/admin/cancel/{id}")
+public String cancelUser(@PathVariable Long id, Model model, Authentication auth) {
+    AppUser user = userRepository.findById(id).orElseThrow();
+    user.setStatus(AppUser.Status.PENDING);
+    userRepository.save(user);
+
+    return refreshUserFragment(model, auth);
+}
+
+// Helper method
+private String refreshUserFragment(Model model, Authentication auth) {
+    String csid = auth.getName();
+    List<AppUser> users = userRepository.findAll().stream()
+        .filter(user -> user.getRole() != AppUser.Role.ADMIN)
+        .filter(user -> !user.getCsid().equalsIgnoreCase(csid))
+        .collect(Collectors.toList());
+
+    model.addAttribute("users", users);
+    return "pending-users-fragment :: pendingUsersTable";
+}
+
+
+******************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <tr th:each="user : ${users}">
     <td th:text="${user.id}"></td>
     <td th:text="${user.fullName}"></td>
