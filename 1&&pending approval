@@ -1,0 +1,69 @@
+<div id="pendingUsersTable">
+  <table border="1">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Full Name</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="user : ${pendingUsers}">
+        <td th:text="${user.id}"></td>
+        <td th:text="${user.fullName}"></td>
+        <td th:text="${user.status}"></td>
+        <td>
+          <button th:if="${user.status.name() == 'PENDING'}"
+                  onclick="updateUserStatus([[${user.id}]], 'approve')" class="approve-btn">Approve</button>
+
+          <button th:if="${user.status.name() == 'APPROVED'}"
+                  onclick="updateUserStatus([[${user.id}]], 'cancel')" class="cancel-btn">Cancel Access</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+
+******************************
+
+@PostMapping("/admin/approve/{id}")
+public String approveUser(@PathVariable Long id, Model model) {
+    AppUser user = userRepository.findById(id).orElseThrow();
+    user.setStatus(AppUser.Status.APPROVED);
+    userRepository.save(user);
+    model.addAttribute("pendingUsers", userRepository.findAll());
+    return "pending-users-fragment :: pendingUsersTable";
+}
+
+@PostMapping("/admin/cancel/{id}")
+public String cancelUser(@PathVariable Long id, Model model) {
+    AppUser user = userRepository.findById(id).orElseThrow();
+    user.setStatus(AppUser.Status.PENDING);
+    userRepository.save(user);
+    model.addAttribute("pendingUsers", userRepository.findAll());
+    return "pending-users-fragment :: pendingUsersTable";
+}
+
+*******************************
+
+<script>
+function updateUserStatus(userId, action) {
+    const endpoint = `/admin/${action}/${userId}`;
+
+    fetch(endpoint, {
+        method: 'POST'
+    })
+    .then(response => response.text())
+    .then(fragment => {
+        document.getElementById("pendingUsersTable").innerHTML = fragment;
+    })
+    .catch(err => {
+        alert("Something went wrong: " + err);
+    });
+}
+</script>
+
+
