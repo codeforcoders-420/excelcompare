@@ -1,3 +1,31 @@
+<tr th:each="user : ${users}">
+    <td th:text="${user.id}"></td>
+    <td th:text="${user.fullName}"></td>
+    <td th:text="${user.status}"></td>
+    <td>
+        <button th:if="${user.status.name() == 'PENDING'}"
+                th:onclick="'updateUserStatus(' + ${user.id} + ', \'approve\')'"
+                class="approve-btn">Approve</button>
+
+        <button th:if="${user.status.name() == 'APPROVED'}"
+                th:onclick="'updateUserStatus(' + ${user.id} + ', \'cancel\')'"
+                class="cancel-btn">Cancel Access</button>
+    </td>
+</tr>
+
+
+******************************
+
+
+
+
+
+
+
+
+
+
+
 @PostMapping("/admin/approve/{id}")
 public String approveUser(@PathVariable Long id, Model model) {
     AppUser user = userRepository.findById(id).orElseThrow();
