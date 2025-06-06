@@ -1,3 +1,40 @@
+<!-- Approve button: shown if status is PENDING -->
+<button th:if="${user.status.name() == 'PENDING'}"
+        th:onclick="'updateUserStatus(' + ${user.id} + ', \'approve\')'"
+        class="approve-btn">Approve</button>
+
+<!-- Cancel button: shown if status is APPROVED -->
+<button th:if="${user.status.name() == 'APPROVED'}"
+        th:onclick="'updateUserStatus(' + ${user.id} + ', \'cancel\')'"
+        class="cancel-btn">Cancel Access</button>
+
+
+************************
+
+.approve-btn {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+}
+
+.cancel-btn {
+    background-color: crimson;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+}
+
+
+******************************
+
+
+
+
+
+
 <div id="pendingUsersTable">
   <table border="1">
     <thead>
