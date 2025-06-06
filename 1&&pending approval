@@ -1,3 +1,48 @@
+@GetMapping("/admin/pendingUsers")
+public String showPendingUsers(Model model, Authentication auth) {
+    String currentUserCsid = auth.getName(); // Logged-in user
+
+    List<AppUser> pendingUsers = userRepository.findAll().stream()
+        .filter(user -> !user.getRole().name().equals("ADMIN"))          // Exclude admins
+        .filter(user -> !user.getCsid().equalsIgnoreCase(currentUserCsid)) // Exclude self
+        .collect(Collectors.toList());
+
+    model.addAttribute("pendingUsers", pendingUsers);
+    return "pending-users-fragment :: pendingUsersTable";
+}
+
+*****************************************************************
+
+<button th:if="${user.status.name() == 'PENDING'}"
+        th:attr="onclick=|updateUserStatus('${user.id}', 'approve')|"
+        class="approve-btn">Approve</button>
+
+<button th:if="${user.status.name() == 'APPROVED'}"
+        th:attr="onclick=|updateUserStatus('${user.id}', 'cancel')|"
+        class="cancel-btn">Cancel Access</button>
+
+*******************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <div th:fragment="pendingUsersContent">
   <h2>Pending User Approvals</h2>
   <table border="1">
